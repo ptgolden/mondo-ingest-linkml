@@ -110,7 +110,10 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
     the rest is YAML parsing.
   - The gene alias `2E4` is a string under YAML 1.1 (PyYAML) but the float `20000.0` under
     YAML 1.2. The assembler now quotes such strings.
-  - JSON is valid YAML 1.2, so publishing JSON could still satisfy a "YAML file" requirement.
+  - YAML stays the published format because curators need to read these files. The costs
+    above are manageable: parsing with the C loader and validating with JSON Schema in memory
+    takes about 17 s, against 51–70 s for the off-the-shelf validators. A machine-only JSON
+    sidecar, generated in the same step, is an option if hub load time ever matters.
 - **The schema validators miss CURIE syntax.** `uriorcurie` becomes an unconstrained
   string in JSON Schema, so the NBSP xrefs passed both `linkml-validate` and JSON Schema.
   Only `sssom validate` caught them, and it reported 7 of the 10. The assembler now checks

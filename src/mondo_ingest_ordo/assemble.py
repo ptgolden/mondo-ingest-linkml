@@ -19,6 +19,10 @@ from linkml_runtime.utils.schemaview import SchemaView
 csv.field_size_limit(sys.maxsize)
 
 
+# Prefix, colon, and a local part with no whitespace or control characters.
+CURIE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*:[^\s\x00-\x1f\x7f-\x9f]+$")
+
+
 class AssemblyError(Exception):
     pass
 
@@ -46,6 +50,8 @@ class Assembler:
                 raise AssemblyError(f"{class_name}.{slot_name}: not a boolean: {value!r}")
             return value == "true"
         if slot.range == "uriorcurie":
+            if not CURIE.match(value):
+                raise AssemblyError(f"{class_name}.{slot_name}: malformed CURIE {value!r}")
             prefix = value.split(":", 1)[0]
             if prefix not in self.prefixes:
                 raise AssemblyError(f"{class_name}.{slot_name}: undeclared prefix in {value!r}")

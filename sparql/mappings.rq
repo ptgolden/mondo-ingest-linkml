@@ -41,8 +41,11 @@ WHERE {
   BIND(IF(BOUND(?q), "semapv:ManualMappingCuration", "semapv:UnspecifiedMatching") AS ?mapping_justification)
   BIND(STR(?q) AS ?source_mapping_qualifier)
 
-  BIND(STRBEFORE(STR(?x), ":") AS ?ordo_prefix)
-  BIND(STRAFTER(STR(?x), ":") AS ?local)
+  # ORDO 4.9 has a handful of ICD-11 xrefs with stray non-breaking spaces
+  # (e.g. "ICD-11:\u00A04A6Y"); mondo-ingest's fix_xref_prefixes.ru strips them too.
+  BIND(REPLACE(STR(?x), "\u00A0", "") AS ?xs)
+  BIND(STRBEFORE(?xs, ":") AS ?ordo_prefix)
+  BIND(STRAFTER(?xs, ":") AS ?local)
   OPTIONAL {
     VALUES (?ordo_prefix ?mondo_prefix) {
       ("ICD-10"    "ICD10WHO")

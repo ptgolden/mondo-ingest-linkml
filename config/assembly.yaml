@@ -1,0 +1,13 @@
+# Which ROBOT query result fills which part of a SourceRelease.
+# Column names in each CSV are slot names from the schema; the assembler uses
+# the schema to decide what is multivalued, inlined, boolean, or a CURIE.
+metadata: tmp/query/metadata.csv
+terms: tmp/query/terms.csv
+term_slots:
+  definition: tmp/query/definitions.csv
+  synonyms: tmp/query/synonyms.csv
+  parents: tmp/query/parents.csv
+  relationships: tmp/query/relationships.csv
+  replaced_by: tmp/query/replacement.csv
+  consider: tmp/query/consider.csv
+mappings: tmp/query/mappings.csv

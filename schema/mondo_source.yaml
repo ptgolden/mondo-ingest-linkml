@@ -1,0 +1,210 @@
+id: https://w3id.org/monarch-initiative/mondo-source/experimental
+name: mondo_source
+title: Mondo source schema (experimental draft)
+description: >-
+  Shape of one source's release as consumed by the mondo-ingest hub.
+
+  EXPERIMENT: in the target architecture this file lives only in mondo-ingest and
+  source repos fetch it by PURL. It is here so the ORDO experiment is self-contained.
+
+  Design rules:
+  (1) Record what the source says, translated into standard vocabulary where the
+  source itself defines the meaning (e.g. ORDO's "E" precision code -> skos:exactMatch).
+  Do not apply Mondo editorial policy (e.g. treating part_of as is_a, assuming
+  synonym scope, generating synonyms from labels); that belongs to the hub.
+  (2) No overloaded fields. OBO's `xref` and `source` are split into a mapping
+  predicate, a mapping justification, citations, and a verbatim source qualifier.
+  (3) Mappings use SSSOM slot names and URIs, so the SSSOM file is a projection
+  of this data, not a second source of truth.
+version: 0.1.0
+license: https://creativecommons.org/publicdomain/zero/1.0/
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  mondo_source: https://w3id.org/monarch-initiative/mondo-source/
+  dcterms: http://purl.org/dc/terms/
+  oboInOwl: http://www.geneontology.org/formats/oboInOwl#
+  owl: http://www.w3.org/2002/07/owl#
+  pav: http://purl.org/pav/
+  rdfs: http://www.w3.org/2000/01/rdf-schema#
+  IAO: http://purl.obolibrary.org/obo/IAO_
+  sssom: https://w3id.org/sssom/
+
+default_prefix: mondo_source
+default_range: string
+
+imports:
+  - linkml:types
+
+classes:
+
+  SourceRelease:
+    description: One release of one source.
+    tree_root: true
+    attributes:
+      metadata:
+        range: ReleaseMetadata
+        required: true
+        inlined: true
+      terms:
+        range: Term
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      mappings:
+        description: Every mapping the source asserts, one row per (subject, object, predicate).
+        range: Mapping
+        multivalued: true
+        inlined_as_list: true
+
+  ReleaseMetadata:
+    description: >-
+      Freshness contract. The hub fails the build if schema_version does not match
+      the schema it runs against, or if the release is older than it allows.
+    attributes:
+      source_id:
+        description: Short identifier for the source, e.g. "ordo".
+        required: true
+      source_version:
+        description: The version string the source itself publishes.
+        slot_uri: pav:version
+        required: true
+      source_version_iri:
+        range: uri
+        slot_uri: owl:versionIRI
+      source_date:
+        description: The release/modification date the source itself publishes.
+        range: datetime
+        slot_uri: dcterms:modified
+      source_license:
+        range: uri
+        slot_uri: dcterms:license
+      source_download_url:
+        description: The URL this release was actually built from.
+        range: uri
+        required: true
+      schema_version:
+        description: Version of this schema the release was validated against.
+        required: true
+      generated_at:
+        range: datetime
+        required: true
+      generated_by:
+        description: Pipeline identity, e.g. repo URL and commit.
+        required: true
+
+  Term:
+    description: A class/concept in the source, identified by its CURIE in Mondo's prefix space.
+    attributes:
+      id:
+        identifier: true
+        range: uriorcurie
+      label:
+        slot_uri: rdfs:label
+        required: true
+      definition:
+        range: Definition
+        inlined: true
+      synonyms:
+        range: Synonym
+        multivalued: true
+        inlined_as_list: true
+      parents:
+        description: >-
+          Direct rdfs:subClassOf parents that are named classes, exactly as asserted by
+          the source. Whether other relations (e.g. part_of) should be treated as
+          hierarchy is a hub decision, not recorded here.
+        range: uriorcurie
+        multivalued: true
+        slot_uri: rdfs:subClassOf
+      relationships:
+        description: Existential relations (subClassOf R some T) asserted by the source.
+        range: Relationship
+        multivalued: true
+        inlined_as_list: true
+      deprecated:
+        range: boolean
+        slot_uri: owl:deprecated
+      obsoletion_reason:
+        description: The source's free-text explanation of why the term is inactive.
+      replaced_by:
+        description: The single term the source says replaces this one.
+        range: uriorcurie
+        slot_uri: IAO:0100001
+      consider:
+        description: Terms the source suggests instead, without claiming replacement.
+        range: uriorcurie
+        multivalued: true
+        slot_uri: oboInOwl:consider
+
+  Definition:
+    attributes:
+      text:
+        required: true
+      citations:
+        description: >-
+          What the source cites for the definition. CURIEs where the source gives
+          identifiers; free text otherwise (e.g. ORDO only says "Orphanet").
+        multivalued: true
+
+  Synonym:
+    attributes:
+      text:
+        required: true
+      scope:
+        description: >-
+          Synonym scope as stated by the source. Absent means the source does not
+          say; the hub decides how to interpret unscoped synonyms.
+        range: SynonymScope
+      synonym_type:
+        description: A synonym type CURIE (e.g. ABBREVIATION), if the source states one.
+        range: uriorcurie
+
+  Relationship:
+    attributes:
+      predicate:
+        range: uriorcurie
+        required: true
+      target:
+        range: uriorcurie
+        required: true
+
+  Mapping:
+    description: >-
+      A mapping asserted by the source. Slot names and URIs follow SSSOM so that
+      the release's SSSOM file is a direct projection.
+    attributes:
+      subject_id:
+        range: uriorcurie
+        slot_uri: sssom:subject_id
+        required: true
+      predicate_id:
+        range: uriorcurie
+        slot_uri: sssom:predicate_id
+        required: true
+      object_id:
+        range: uriorcurie
+        slot_uri: sssom:object_id
+        required: true
+      mapping_justification:
+        range: uriorcurie
+        slot_uri: sssom:mapping_justification
+        required: true
+      source_mapping_qualifier:
+        description: >-
+          The source's own qualifier on this mapping, verbatim, for audit. Kept
+          because some sources pack more into it than SSSOM has a slot for
+          (ORDO adds an ICD code-relation type next to the precision code).
+          Not an SSSOM slot.
+
+enums:
+  SynonymScope:
+    permissible_values:
+      EXACT:
+        meaning: oboInOwl:hasExactSynonym
+      RELATED:
+        meaning: oboInOwl:hasRelatedSynonym
+      BROAD:
+        meaning: oboInOwl:hasBroadSynonym
+      NARROW:
+        meaning: oboInOwl:hasNarrowSynonym

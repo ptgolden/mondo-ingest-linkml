@@ -175,6 +175,7 @@ def main():
     parser.add_argument("--schema", type=Path, required=True)
     parser.add_argument("--prefixes", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--query-dir", type=Path, required=True, help="Directory holding the ROBOT query CSVs")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="Extra metadata not available from the source (e.g. generated_at)")
     parser.add_argument("--output", type=Path, required=True)
@@ -186,7 +187,7 @@ def main():
     extra = dict(item.split("=", 1) for item in args.set)
 
     try:
-        release = Assembler(args.schema, prefixes).assemble(config, Path("."), extra)
+        release = Assembler(args.schema, prefixes).assemble(config, args.query_dir, extra)
     except AssemblyError as e:
         sys.exit(f"assembly failed: {e}")
 

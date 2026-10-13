@@ -50,6 +50,7 @@ $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(SCHEM
 		--schema $(SCHEMA) \
 		--prefixes config/prefixes.yaml \
 		--config config/assembly.yaml \
+		--query-dir $(TMP)/query \
 		--set source_id=ordo \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
 		--set schema_version=$(SCHEMA_VERSION) \

@@ -21,4 +21,5 @@ dev = [
     "check-jsonschema>=0.38.2",
     "jsonschema>=4.26.0",
     "linkml>=1.12.1",
+    "sssom>=0.4.17",
 ]

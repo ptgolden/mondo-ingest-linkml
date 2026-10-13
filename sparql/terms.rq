@@ -1,0 +1,16 @@
+# One row per ORDO class, single-valued fields only. -> Term
+# Labels: 4.9 has a few classes with both "X" and "X"@en; STR + DISTINCT collapses them.
+# Labels are kept verbatim (including "OBSOLETE: " prefixes); stripping is hub policy.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX efo: <http://www.ebi.ac.uk/efo/>
+SELECT DISTINCT ?id ?label ?deprecated ?obsoletion_reason
+WHERE {
+  ?c a owl:Class ;
+     rdfs:label ?l .
+  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  BIND(STR(?l) AS ?label)
+  OPTIONAL { ?c owl:deprecated ?d BIND(STR(?d) AS ?deprecated) }
+  OPTIONAL { ?c efo:reason_for_inactivation ?r BIND(STR(?r) AS ?obsoletion_reason) }
+}

@@ -1,0 +1,16 @@
+# -> Term.relationships: subClassOf (R some T), except "Moved to" (C056) and
+# "Referred to" (C057), which are obsoletion pointers (replacement.rq, consider.rq).
+# Gene-disease relations stay on the gene class, the direction ORDO asserts them.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT DISTINCT ?id ?predicate ?target
+WHERE {
+  ?c rdfs:subClassOf [ owl:onProperty ?r ; owl:someValuesFrom ?t ] .
+  FILTER(?r NOT IN (<http://www.orpha.net/ORDO/Orphanet_C056>, <http://www.orpha.net/ORDO/Orphanet_C057>))
+  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  BIND(IF(STRSTARTS(STR(?r), "http://purl.obolibrary.org/obo/BFO_"),
+          CONCAT("BFO:", STRAFTER(STR(?r), "http://purl.obolibrary.org/obo/BFO_")),
+          CONCAT("Orphanet:", STRAFTER(STR(?r), "http://www.orpha.net/ORDO/Orphanet_"))) AS ?predicate)
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?t), "http://www.orpha.net/ORDO/Orphanet_")) AS ?target)
+}

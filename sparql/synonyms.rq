@@ -1,0 +1,10 @@
+# -> Term.synonyms. ORDO's alternative_term carries no scope, so ?scope is left unbound.
+# Treating these as EXACT (as mondo-ingest's property map does today) is hub policy.
+PREFIX efo: <http://www.ebi.ac.uk/efo/>
+SELECT DISTINCT ?id ?text
+WHERE {
+  ?c efo:alternative_term ?s .
+  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  BIND(STR(?s) AS ?text)
+}

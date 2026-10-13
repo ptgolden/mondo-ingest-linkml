@@ -1,0 +1,13 @@
+# -> Term.parents: direct named superclasses, as asserted.
+# In ORDO these are typology classes (Disorder, Group of disorders, Obsolete disorder, ...).
+# ORDO's disease classification is expressed with part_of instead; see relationships.rq.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT DISTINCT ?id ?parents
+WHERE {
+  ?c rdfs:subClassOf ?p .
+  FILTER(isIRI(?p))
+  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
+  FILTER(STRSTARTS(STR(?p), "http://www.orpha.net/ORDO/Orphanet_"))
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?p), "http://www.orpha.net/ORDO/Orphanet_")) AS ?parents)
+}

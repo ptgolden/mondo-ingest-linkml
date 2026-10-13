@@ -1,0 +1,55 @@
+# -> SourceRelease.mappings, one row per hasDbXref.
+#
+# Predicate comes from ORDO's own precision code (ECO_0000218 axiom annotation),
+# which ORDO defines relative to the ORPHAcode:
+#   E    -> skos:exactMatch
+#   NTBT -> skos:broadMatch   (ORPHAcode narrower than target, so target is broader)
+#   BTNT -> skos:narrowMatch
+#   ND   -> oboInOwl:hasDbXref (ORDO declined to qualify it)
+#   no qualifier (gene xrefs) -> oboInOwl:hasDbXref
+# The qualifier string can carry a second line (ICD code-relation type). It is
+# kept verbatim in ?source_mapping_qualifier.
+#
+# Target prefixes are normalised to Mondo's prefix space. Any prefix not in
+# the VALUES table passes through unchanged and is caught by the prefix check
+# at assembly time.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
+PREFIX obo: <http://purl.obolibrary.org/obo/>
+SELECT DISTINCT ?subject_id ?predicate_id ?object_id ?mapping_justification ?source_mapping_qualifier
+WHERE {
+  ?c oio:hasDbXref ?x .
+  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
+  OPTIONAL {
+    ?ax owl:annotatedSource ?c ;
+        owl:annotatedProperty oio:hasDbXref ;
+        owl:annotatedTarget ?x ;
+        obo:ECO_0000218 ?q .
+  }
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?subject_id)
+
+  # Strip the leading "- " that multi-line qualifiers use, then read the code.
+  BIND(REPLACE(STR(?q), "^- ", "") AS ?qs)
+  BIND(
+    IF(!BOUND(?q), "oboInOwl:hasDbXref",
+    IF(STRSTARTS(?qs, "E "), "skos:exactMatch",
+    IF(STRSTARTS(?qs, "NTBT "), "skos:broadMatch",
+    IF(STRSTARTS(?qs, "BTNT "), "skos:narrowMatch",
+    IF(STRSTARTS(?qs, "ND "), "oboInOwl:hasDbXref",
+       "UNRECOGNISED_QUALIFIER")))))
+    AS ?predicate_id)
+  BIND(IF(BOUND(?q), "semapv:ManualMappingCuration", "semapv:UnspecifiedMatching") AS ?mapping_justification)
+  BIND(STR(?q) AS ?source_mapping_qualifier)
+
+  BIND(STRBEFORE(STR(?x), ":") AS ?ordo_prefix)
+  BIND(STRAFTER(STR(?x), ":") AS ?local)
+  OPTIONAL {
+    VALUES (?ordo_prefix ?mondo_prefix) {
+      ("ICD-10"    "ICD10WHO")
+      ("ICD-11"    "ICD11")
+      ("MeSH"      "MESH")
+      ("SwissProt" "UniProtKB")
+    }
+  }
+  BIND(CONCAT(COALESCE(?mondo_prefix, ?ordo_prefix), ":", ?local) AS ?object_id)
+}

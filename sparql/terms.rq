@@ -11,6 +11,14 @@ WHERE {
   FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
   BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
   BIND(STR(?l) AS ?label)
-  OPTIONAL { ?c owl:deprecated ?d BIND(STR(?d) AS ?deprecated) }
   OPTIONAL { ?c efo:reason_for_inactivation ?r BIND(STR(?r) AS ?obsoletion_reason) }
+
+  # ORDO 4.9 states owl:deprecated; 4.7 only placed inactive terms under "Inactive
+  # clinical entity" (C041) with a reason_for_inactivation. Accept either. Requiring
+  # the reason excludes ORDO's own category classes under C041 ("Obsolete disorder"
+  # etc.), which mondo-ingest's fix_deprecated.ru marks deprecated too.
+  OPTIONAL { ?c owl:deprecated ?d }
+  BIND(IF(BOUND(?d), STR(?d),
+          IF(BOUND(?r) && EXISTS { ?c rdfs:subClassOf+ <http://www.orpha.net/ORDO/Orphanet_C041> }, "true", ?unbound))
+       AS ?deprecated)
 }

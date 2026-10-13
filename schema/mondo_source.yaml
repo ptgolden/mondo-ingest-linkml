@@ -73,8 +73,10 @@ classes:
         range: uri
         slot_uri: owl:versionIRI
       source_date:
-        description: The release/modification date the source itself publishes.
-        range: datetime
+        description: >-
+          The release/modification date the source itself publishes, verbatim.
+          Not typed as datetime because sources publish dates without timezones
+          (ORDO: "2026-06-26T16:36:02"), which are not valid RFC 3339 date-times.
         slot_uri: dcterms:modified
       source_license:
         range: uri

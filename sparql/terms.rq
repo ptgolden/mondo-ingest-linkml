@@ -1,24 +1,18 @@
-# One row per ORDO class, single-valued fields only. -> Term
+# One row per in-scope class. -> Term
 # Labels: 4.9 has a few classes with both "X" and "X"@en; STR + DISTINCT collapses them.
-# Labels are kept verbatim (including "OBSOLETE: " prefixes); stripping is Mondo policy, applied in mondo-ingest.
+# Deprecated: owl:deprecated (ORDO 4.9), or anything under Inactive clinical entity
+# (C041), including C041 and its own category classes, as mondo-ingest's
+# fix_deprecated.ru does. ORDO's free-text reason_for_inactivation is not taken in.
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX efo: <http://www.ebi.ac.uk/efo/>
-SELECT DISTINCT ?id ?label ?deprecated ?obsoletion_reason
+SELECT DISTINCT ?id ?label ?deprecated
 WHERE {
-  ?c a owl:Class ;
+  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
      rdfs:label ?l .
-  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
   BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
   BIND(STR(?l) AS ?label)
-  OPTIONAL { ?c efo:reason_for_inactivation ?r BIND(STR(?r) AS ?obsoletion_reason) }
-
-  # ORDO 4.9 states owl:deprecated; 4.7 only placed inactive terms under "Inactive
-  # clinical entity" (C041) with a reason_for_inactivation. Accept either. Requiring
-  # the reason excludes ORDO's own category classes under C041 ("Obsolete disorder"
-  # etc.), which mondo-ingest's fix_deprecated.ru marks deprecated too.
   OPTIONAL { ?c owl:deprecated ?d }
   BIND(IF(BOUND(?d), STR(?d),
-          IF(BOUND(?r) && EXISTS { ?c rdfs:subClassOf+ <http://www.orpha.net/ORDO/Orphanet_C041> }, "true", ?unbound))
+          IF(EXISTS { ?c rdfs:subClassOf* <http://www.orpha.net/ORDO/Orphanet_C041> }, "true", ?unbound))
        AS ?deprecated)
 }

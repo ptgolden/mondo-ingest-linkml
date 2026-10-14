@@ -1,14 +1,9 @@
-# -> Term.definition. ORDO cites definitions only as free text ("Orphanet").
-# ORDO also defines its object properties and value resources (e.g. "oligogenic");
-# only classes are terms.
-PREFIX owl: <http://www.w3.org/2002/07/owl#>
+# -> Term.definition. ORDO's citation for every definition is just "Orphanet"; not taken in.
 PREFIX efo: <http://www.ebi.ac.uk/efo/>
-SELECT DISTINCT ?id ?text ?citations
+SELECT DISTINCT ?id ?text
 WHERE {
-  ?c a owl:Class ;
+  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
      efo:definition ?d .
-  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
   BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
   BIND(STR(?d) AS ?text)
-  OPTIONAL { ?c efo:definition_citation ?dc BIND(STR(?dc) AS ?citations) }
 }

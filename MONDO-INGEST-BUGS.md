@@ -5,8 +5,8 @@ output" means `components/ordo.owl` and `mappings/ordo.sssom.tsv` from mondo-ing
 release v2026-01-24 (built from ORDO 4.7); the code is mondo-ingest@0dc67c4.
 
 Bugs 1–3 were found first and were the reason to build a fixed component here; bugs 4–7
-turned up while doing it. The component in `component/` fixes all seven (see
-[component/README.md](component/README.md)).
+turned up while doing it. This repo's `ordo.owl` and `ordo.sssom.tsv` fix all seven (see the
+README).
 
 ## 1. Removed gene classes keep their labels and synonyms
 
@@ -55,7 +55,9 @@ loss-of-function relation is `RO:0004002`, which isn't in `config/properties.txt
 so fixing only the query would still lose it.
 
 **Scale:** in ORDO 4.9, 1,222 of the 1,436 functional gene relations are loss-of-function,
-and all of them would be stated as gain-of-function.
+and all of them would be stated as gain-of-function. Where ORDO says a gene is involved
+in a disease through both gain and loss of function (11 disease–gene pairs in 4.7), the
+two collapse into a single gain-of-function triple.
 
 ## 5. ORDO 4.9 would rename Mondo's `ordo_*` subsets
 

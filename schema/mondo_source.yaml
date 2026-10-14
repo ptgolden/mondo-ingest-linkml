@@ -2,22 +2,23 @@ id: https://w3id.org/monarch-initiative/mondo-source/experimental
 name: mondo_source
 title: Mondo source schema (experimental draft)
 description: >-
-  Shape of one source's release as consumed by mondo-ingest.
+  What Mondo takes in from one source: the source's in-scope terms, with Mondo's
+  interpretation of them already applied (e.g. ORDO's part_of as parents, its
+  synonyms as EXACT, synonyms generated from labels). The OWL and SSSOM files a
+  source repo publishes are renderings of this.
 
   EXPERIMENT: in the target architecture this file lives only in mondo-ingest and
   source repos fetch it by PURL. It is here so the ORDO experiment is self-contained.
 
   Design rules:
-  (1) Record what the source says, translated into standard vocabulary where the
-  source itself defines the meaning (e.g. ORDO's "E" precision code -> skos:exactMatch).
-  Do not apply Mondo editorial policy (e.g. treating part_of as is_a, assuming
-  synonym scope, generating synonyms from labels); that belongs to mondo-ingest.
+  (1) Data Mondo's interpretation creates, as opposed to translates, says so: e.g.
+  synonyms copied from labels carry synonym_type mondo:GENERATED_FROM_LABEL.
   (2) No overloaded fields. OBO's `xref` and `source` are split into a mapping
-  predicate, a mapping justification, citations, and a verbatim source qualifier.
+  predicate, a mapping justification and a comment, and definition citations.
   (3) Mappings are inlined on the term they are about, using the sssom-schema
   package's own slots, so the SSSOM file is a projection of this data, not a
   second source of truth.
-version: 0.1.0
+version: 0.2.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
 
 prefixes:
@@ -115,14 +116,13 @@ classes:
         inlined_as_list: true
       parents:
         description: >-
-          Direct rdfs:subClassOf parents that are named classes, exactly as asserted by
-          the source. Whether other relations (e.g. part_of) should be treated as
-          hierarchy is a mondo-ingest decision, not recorded here.
+          Direct parents, as Mondo reads the source's hierarchy (for ORDO: its
+          rdfs:subClassOf parents plus its part_of targets).
         range: uriorcurie
         multivalued: true
         slot_uri: rdfs:subClassOf
       relationships:
-        description: Existential relations (subClassOf R some T) asserted by the source.
+        description: Existential relations (subClassOf R some T), e.g. disease to gene.
         range: Relationship
         multivalued: true
         inlined_as_list: true
@@ -140,6 +140,11 @@ classes:
         range: uriorcurie
         multivalued: true
         slot_uri: oboInOwl:consider
+      subsets:
+        description: Subsets the term belongs to, e.g. mondo#ordo_disorder.
+        range: uriorcurie
+        multivalued: true
+        slot_uri: oboInOwl:inSubset
       mappings:
         description: Every mapping the source asserts from this term.
         range: TermMapping
@@ -162,8 +167,8 @@ classes:
         required: true
       scope:
         description: >-
-          Synonym scope as stated by the source. Absent means the source does not
-          say; mondo-ingest decides how to interpret unscoped synonyms.
+          Synonym scope. Absent means unscoped; Mondo's reading of a source
+          normally assigns one.
         range: SynonymScope
       synonym_type:
         description: A synonym type CURIE (e.g. ABBREVIATION), if the source states one.

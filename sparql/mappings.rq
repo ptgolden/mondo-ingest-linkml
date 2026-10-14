@@ -1,60 +1,55 @@
-# -> Term.mappings, one row per hasDbXref. ?id is the term the mapping is from;
-# the SSSOM projection turns it into subject_id.
+# -> Term.mappings: ORDO's qualified xrefs from in-scope terms.
 #
 # Predicate comes from ORDO's own precision code (ECO_0000218 axiom annotation),
 # which ORDO defines relative to the ORPHAcode:
 #   E    -> skos:exactMatch
 #   NTBT -> skos:broadMatch   (ORPHAcode narrower than target, so target is broader)
 #   BTNT -> skos:narrowMatch
-#   ND   -> oboInOwl:hasDbXref (ORDO declined to qualify it)
-#   no qualifier (gene xrefs) -> oboInOwl:hasDbXref
-# For ICD targets the qualifier has a second line, the code-relation type
-# (Specific code / Attributed code / Index term / Inclusion term), which SSSOM
-# has no slot for. It goes into ?comment, minus the leading "- " and final ".".
-# Neither is kept by mondo-ingest today.
+# ND-qualified and unqualified xrefs are not taken in (as in mondo-ingest).
 #
-# Target prefixes are normalised to Mondo's prefix space. Any prefix not in
-# the VALUES table passes through unchanged and is caught by the prefix check
-# at assembly time.
+# For ICD targets the qualifier has a second line, the code-relation type
+# (Specific code / Attributed code / Index term / Inclusion term), which SSSOM has
+# no slot for. It goes into ?comment, minus the leading "- " and final ".".
+#
+# Target prefixes are rewritten to mondo-ingest's (config/prefixes.yaml). Any
+# prefix not in the VALUES table passes through unchanged and is caught by the
+# prefix check at assembly time.
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
 PREFIX obo: <http://purl.obolibrary.org/obo/>
 SELECT DISTINCT ?id ?predicate_id ?object_id ?mapping_justification ?comment
 WHERE {
-  ?c oio:hasDbXref ?x .
-  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
-  OPTIONAL {
-    ?ax owl:annotatedSource ?c ;
-        owl:annotatedProperty oio:hasDbXref ;
-        owl:annotatedTarget ?x ;
-        obo:ECO_0000218 ?q .
-  }
+  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+     oio:hasDbXref ?x .
+  ?ax owl:annotatedSource ?c ;
+      owl:annotatedProperty oio:hasDbXref ;
+      owl:annotatedTarget ?x ;
+      obo:ECO_0000218 ?q .
   BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
 
   # Strip the leading "- " that multi-line qualifiers use, then read the code.
   BIND(REPLACE(STR(?q), "^- ", "") AS ?qs)
   BIND(
-    IF(!BOUND(?q), "oboInOwl:hasDbXref",
     IF(STRSTARTS(?qs, "E "), "skos:exactMatch",
     IF(STRSTARTS(?qs, "NTBT "), "skos:broadMatch",
     IF(STRSTARTS(?qs, "BTNT "), "skos:narrowMatch",
-    IF(STRSTARTS(?qs, "ND "), "oboInOwl:hasDbXref",
-       "UNRECOGNISED_QUALIFIER")))))
+    IF(STRSTARTS(?qs, "ND "), ?unbound,
+       "UNRECOGNISED_QUALIFIER"))))
     AS ?predicate_id)
-  BIND(IF(BOUND(?q), "semapv:ManualMappingCuration", "semapv:UnspecifiedMatching") AS ?mapping_justification)
+  FILTER(BOUND(?predicate_id))
+  BIND("semapv:ManualMappingCuration" AS ?mapping_justification)
   BIND(IF(CONTAINS(STR(?q), "\n- "), REPLACE(STRAFTER(STR(?q), "\n- "), "\\.$", ""), ?unbound) AS ?comment)
 
   # ORDO 4.9 has a handful of ICD-11 xrefs with stray non-breaking spaces
-  # (e.g. "ICD-11:\u00A04A6Y"); mondo-ingest's fix_xref_prefixes.ru strips them too.
-  BIND(REPLACE(STR(?x), "\u00A0", "") AS ?xs)
+  # (e.g. "ICD-11: 4A6Y"); mondo-ingest's fix_xref_prefixes.ru meant to strip them.
+  BIND(REPLACE(STR(?x), " ", "") AS ?xs)
   BIND(STRBEFORE(?xs, ":") AS ?ordo_prefix)
   BIND(STRAFTER(?xs, ":") AS ?local)
   OPTIONAL {
     VALUES (?ordo_prefix ?mondo_prefix) {
-      ("ICD-10"    "ICD10WHO")
-      ("ICD-11"    "ICD11")
+      ("ICD-10"    "ICD10")
+      ("ICD-11"    "icd11.foundation")
       ("MeSH"      "MESH")
-      ("SwissProt" "UniProtKB")
     }
   }
   BIND(CONCAT(COALESCE(?mondo_prefix, ?ordo_prefix), ":", ?local) AS ?object_id)

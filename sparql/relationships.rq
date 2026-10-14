@@ -1,16 +1,27 @@
-# -> Term.relationships: subClassOf (R some T), except "Moved to" (C056) and
-# "Referred to" (C057), which are obsoletion pointers (replacement.rq, consider.rq).
-# Gene-disease relations stay on the gene class, the direction ORDO asserts them.
+# -> Term.relationships: disease -> HGNC gene, from ORDO's gene -> disease relations
+# (mondo-ingest's ordo-construct-d2g.ru, turned around onto the disease).
+#
+# Orphanet:410295 is the loss-of-function relation and maps to RO:0004002;
+# mondo-ingest maps it to RO:0004001, the gain-of-function one
+# (MONDO-INGEST-BUGS.md, bug 4).
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
 SELECT DISTINCT ?id ?predicate ?target
 WHERE {
-  ?c rdfs:subClassOf [ owl:onProperty ?r ; owl:someValuesFrom ?t ] .
-  FILTER(?r NOT IN (<http://www.orpha.net/ORDO/Orphanet_C056>, <http://www.orpha.net/ORDO/Orphanet_C057>))
-  FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
-  BIND(IF(STRSTARTS(STR(?r), "http://purl.obolibrary.org/obo/BFO_"),
-          CONCAT("BFO:", STRAFTER(STR(?r), "http://purl.obolibrary.org/obo/BFO_")),
-          CONCAT("Orphanet:", STRAFTER(STR(?r), "http://www.orpha.net/ORDO/Orphanet_"))) AS ?predicate)
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?t), "http://www.orpha.net/ORDO/Orphanet_")) AS ?target)
+  VALUES (?ordoRel ?predicate) {
+    ( <http://www.orpha.net/ORDO/Orphanet_410295> "RO:0004002" )
+    ( <http://www.orpha.net/ORDO/Orphanet_410296> "RO:0004001" )
+    ( <http://www.orpha.net/ORDO/Orphanet_317343> "RO:0004003" )
+    ( <http://www.orpha.net/ORDO/Orphanet_317344> "RO:0004004" )
+  }
+  ?gene rdfs:subClassOf [ owl:onProperty ?ordoRel ; owl:someValuesFrom ?disease ] ;
+        oio:hasDbXref ?x ;
+        rdfs:subClassOf+ <http://www.orpha.net/ORDO/Orphanet_C010> .
+  ?disease <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+           rdfs:label ?diseaseLabel ;
+           rdfs:subClassOf+ <http://www.orpha.net/ORDO/Orphanet_C001> .
+  FILTER(STRSTARTS(STR(?x), "HGNC:"))
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?disease), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  BIND(STR(?x) AS ?target)
 }

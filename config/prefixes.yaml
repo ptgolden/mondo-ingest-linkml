@@ -1,36 +1,32 @@
 # Canonical prefix map: every CURIE in a release must use one of these.
 #
-# EXPERIMENT: like the schema, this would live once in mondo-ingest (derived
-# from Mondo's own prefixes where Mondo has an opinion), not per source repo.
+# EXPERIMENT: like the schema, this would live once in mondo-ingest, not per source
+# repo. For now it follows mondo-ingest's own conventions for ORDO: the bases in its
+# src/ontology/metadata/ordo.metadata.sssom.yml, plus MONDO and icd11.foundation as
+# they appear in its released mappings/ordo.sssom.tsv (v2026-01-24).
 #
 # Orphanet's own prefix spellings ("ICD-10", "MeSH", ...) are rewritten to these
 # in sparql/mappings.rq.
 
-# Ontology-level vocabulary
+# Vocabulary
 oboInOwl: http://www.geneontology.org/formats/oboInOwl#
 skos: http://www.w3.org/2004/02/skos/core#
 semapv: https://w3id.org/semapv/vocab/
-BFO: http://purl.obolibrary.org/obo/BFO_
+mondo: http://purl.obolibrary.org/obo/mondo#
+RO: http://purl.obolibrary.org/obo/RO_
+orcid: https://orcid.org/
 
-# Disease terminologies (bases from mondo/src/ontology/config/prefixes.csv where present)
+# Terms and mapping targets
 Orphanet: http://www.orpha.net/ORDO/Orphanet_
 MONDO: http://purl.obolibrary.org/obo/MONDO_
 OMIM: https://omim.org/entry/
-ICD10WHO: https://icd.who.int/browse10/2019/en#/
-# ORDO's ICD-11 codes are MMS codes (e.g. LD28.01), not Foundation IDs, so they do
-# not belong under Mondo's icd11.foundation prefix. UNRESOLVED: no agreed prefix yet.
-ICD11: https://icd.who.int/browse/2024-01/mms/en#
-MESH: http://id.nlm.nih.gov/mesh/
+ICD10: http://apps.who.int/classifications/icd10/browse/2010/en#/
+# NOTE: ORDO's ICD-11 codes are MMS codes (e.g. LD28.01), not Foundation IDs, but
+# mondo-ingest files them under icd11.foundation. Kept for compatibility.
+icd11.foundation: http://id.who.int/icd/entity/
+MESH: http://identifiers.org/mesh/
 UMLS: http://linkedlifedata.com/resource/umls/id/
-MedDRA: http://identifiers.org/meddra/
+MedDRA: https://identifiers.org/meddra/
 
-# Gene/protein resources (ORDO gene classes only)
+# Gene-disease relation targets
 HGNC: http://identifiers.org/hgnc/
-Ensembl: http://identifiers.org/ensembl/
-UniProtKB: http://purl.uniprot.org/uniprot/
-# ORDO's ClinVar and Genatlas xrefs are gene symbols, and its Reactome xrefs are
-# UniProt accessions; none are valid identifiers in those namespaces.
-ClinVar: https://www.ncbi.nlm.nih.gov/clinvar/?term=
-Genatlas: http://genatlas.medecine.univ-paris5.fr/fiche.php?symbol=
-Reactome: http://identifiers.org/reactome/
-IUPHAR: http://identifiers.org/iuphar.receptor/

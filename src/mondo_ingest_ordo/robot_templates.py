@@ -2,8 +2,11 @@
 
 Python only writes tables here; ROBOT owns the OWL. Output, in --out-dir:
 
-  declarations.tsv     every term (owl:Class) and relationship predicate (owl:ObjectProperty)
-  terms.tsv            single-valued term annotations, definitions, obsoletion, parents
+  declarations.tsv     every term and relationship target (owl:Class), relationship
+                       predicate (owl:ObjectProperty) and synonym type (an
+                       owl:AnnotationProperty under oboInOwl:SynonymTypeProperty)
+  terms.tsv            single-valued term annotations, definitions, obsoletion,
+                       subsets, parents
   synonyms-<n>.tsv     one table per synonym scope
   relationships-<n>.tsv, mappings-<n>.tsv
                        one table per predicate, because ROBOT templates put the
@@ -83,7 +86,7 @@ def safe_name(curie_: str) -> str:
 def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
     tables: dict[str, Table] = {}
 
-    decl = Table([("ID", "ID"), ("TYPE", "TYPE"), ("LABEL", "LABEL")])
+    decl = Table([("ID", "ID"), ("TYPE", "TYPE"), ("LABEL", "LABEL"), ("PARENT_PROPERTY", "SP %")])
     terms = Table([
         ("ID", "ID"),
         ("deprecated", f"AT {slot_uri(sv, 'Term', 'deprecated')}^^xsd:boolean"),
@@ -92,6 +95,7 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
         ("citations", f">A {DEFINITION_CITATION} SPLIT={SPLIT}"),
         ("replaced_by", f"AI {slot_uri(sv, 'Term', 'replaced_by')}"),
         ("consider", f"AI {slot_uri(sv, 'Term', 'consider')} SPLIT={SPLIT}"),
+        ("subsets", f"AI {slot_uri(sv, 'Term', 'subsets')} SPLIT={SPLIT}"),
         ("parents", f"SC % SPLIT={SPLIT}"),
     ])
     tables["terms"] = terms
@@ -104,11 +108,14 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
     relationships: dict[str, Table] = {}
     mappings: dict[str, Table] = {}
 
-    predicates = set()
+    predicates: set[str] = set()
+    targets: set[str] = set()
+    synonym_types: set[str] = set()
+    term_ids = {t["id"] for t in release["terms"]}
 
     for term in release["terms"]:
         tid = term["id"]
-        decl.add(tid, "owl:Class", term["label"])
+        decl.add(tid, "owl:Class", term["label"], "")
 
         definition = term.get("definition", {})
         terms.add(
@@ -119,6 +126,7 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
             join(definition.get("citations", [])),
             term.get("replaced_by", ""),
             join(term.get("consider", [])),
+            join(term.get("subsets", [])),
             join(term.get("parents", [])),
         )
 
@@ -130,9 +138,12 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
                 ("synonym_type", f">AI {slot_uri(sv, 'Synonym', 'synonym_type')}"),
             ]))
             table.add(tid, syn["text"], syn.get("synonym_type", ""))
+            if "synonym_type" in syn:
+                synonym_types.add(syn["synonym_type"])
 
         for rel in term.get("relationships", []):
             predicates.add(rel["predicate"])
+            targets.add(rel["target"])
             table = relationships.setdefault(rel["predicate"], Table([
                 ("ID", "ID"),
                 ("target", f"SC {rel['predicate']} some %"),
@@ -153,8 +164,15 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
                 ])
             mappings[pred].add(tid, m["object_id"], *(str(m.get(s, "")) for s in MAPPING_ANNOTATION_COLUMNS))
 
+    # Relationship targets outside the release (e.g. HGNC genes) still need declaring.
+    for t in sorted(targets - term_ids):
+        decl.add(t, "owl:Class", "", "")
     for p in sorted(predicates):
-        decl.add(p, "owl:ObjectProperty", "")
+        decl.add(p, "owl:ObjectProperty", "", "")
+    if synonym_types:
+        decl.add("oboInOwl:SynonymTypeProperty", "owl:AnnotationProperty", "", "")
+        for st in sorted(synonym_types):
+            decl.add(st, "owl:AnnotationProperty", "", "oboInOwl:SynonymTypeProperty")
 
     tables["declarations"] = decl
     for prefix, group in (("synonyms", synonyms), ("relationships", relationships), ("mappings", mappings)):

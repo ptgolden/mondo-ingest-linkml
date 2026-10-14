@@ -1,0 +1,16 @@
+# -> Term.subsets: mondo#ordo_<category> for each ORDO category under Clinical entity
+# (C001) the term is under, through subClassOf with part_of folded in
+# (mondo-ingest's ordo-construct-subsets.ru).
+#
+# The label is lowercased: 4.9 capitalised the category labels, which would
+# otherwise rename Mondo's existing subsets (MONDO-INGEST-BUGS.md, bug 5).
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT DISTINCT ?id ?subsets
+WHERE {
+  ?category rdfs:subClassOf <http://www.orpha.net/ORDO/Orphanet_C001> ;
+            rdfs:label ?categoryLabel .
+  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+     rdfs:subClassOf+ ?category .
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  BIND(CONCAT("mondo:ordo_", REPLACE(LCASE(STR(?categoryLabel)), " ", "_")) AS ?subsets)
+}

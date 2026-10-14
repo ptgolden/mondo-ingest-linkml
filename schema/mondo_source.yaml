@@ -168,6 +168,7 @@ classes:
       synonym_type:
         description: A synonym type CURIE (e.g. ABBREVIATION), if the source states one.
         range: uriorcurie
+        slot_uri: oboInOwl:hasSynonymType
 
   Relationship:
     attributes:

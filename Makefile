@@ -1,6 +1,6 @@
 # ORDO source pipeline (experiment).
 #
-#   make            download (if needed), extract, assemble, project SSSOM
+#   make            download (if needed), extract, assemble, project SSSOM, render OWL
 #   make validate   validate the release against the schema, and the SSSOM file
 #   make refresh    re-download the latest ORDO release, then build
 #
@@ -9,6 +9,7 @@
 # Stable URL for the current English ORDO (the same one mondo-ingest uses). The
 # exact version is recorded from the file's own owl:versionIRI in the release metadata.
 ORDO_URL := https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_orphanet.owl
+RENDERED_IRI := https://w3id.org/monarch-initiative/mondo-ingest/sources/ordo/ordo.linkml.owl
 MAPPING_SET_ID := https://w3id.org/monarch-initiative/mondo-ingest/sources/ordo/ordo.sssom.tsv
 
 SCHEMA := schema/mondo_source.yaml
@@ -22,7 +23,7 @@ RELEASE := release
 GENERATED_BY = $(shell git remote get-url origin 2>/dev/null || echo $(CURDIR))@$(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD -- || echo -dirty)
 
 .PHONY: all validate refresh clean
-all: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml $(RELEASE)/ordo.sssom.tsv
+all: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml $(RELEASE)/ordo.sssom.tsv $(RELEASE)/ordo.linkml.owl
 
 $(TMP)/ordo.owl:
 	mkdir -p $(TMP)
@@ -72,6 +73,26 @@ $(RELEASE)/ordo.sssom.tsv: $(RELEASE)/ordo.yaml config/prefixes.yaml $(PYTHON_SR
 
 # linkml-validate has no importmap option, so it fetches the SSSOM schema from the
 # pinned URL in the schema's prefixes (network required).
+# LinkML OWL rendering of the release: Python flattens it to ROBOT templates and
+# ROBOT builds the OWL. Declarations go first so the other templates can resolve
+# the classes and properties they mention.
+$(TMP)/templates/.done: $(RELEASE)/ordo.yaml $(TMP)/importmap.json $(SCHEMA) config/prefixes.yaml $(PYTHON_SRC)
+	uv run python -m mondo_ingest_ordo.robot_templates $< \
+		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
+		--prefixes config/prefixes.yaml --out-dir $(TMP)/templates
+	touch $@
+
+$(RELEASE)/ordo.linkml.owl: $(TMP)/templates/.done
+	robot template --add-prefixes $(TMP)/templates/prefixes.json \
+		--template $(TMP)/templates/declarations.tsv \
+		--output $(TMP)/templates/declarations.owl
+	robot template --input $(TMP)/templates/declarations.owl --merge-before \
+		--add-prefixes $(TMP)/templates/prefixes.json \
+		$$(sed 's/^/--template /' $(TMP)/templates/templates.txt) \
+		annotate --add-prefixes $(TMP)/templates/prefixes.json \
+		--ontology-iri $(RENDERED_IRI) $$(cat $(TMP)/templates/annotate-args.txt) \
+		--output $@
+
 validate: all
 	uv run linkml-validate -s $(SCHEMA) -C SourceRelease $(RELEASE)/ordo.yaml
 	uv run sssom validate $(RELEASE)/ordo.sssom.tsv

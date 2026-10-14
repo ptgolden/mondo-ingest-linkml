@@ -116,7 +116,7 @@ class Assembler:
 
         return {
             "metadata": metadata,
-            "terms": [canonical(terms[k]) for k in sorted(terms, key=natural_key)],
+            "terms": [canonical(terms[k], config.get("sort_by", {})) for k in sorted(terms, key=natural_key)],
         }
 
 
@@ -135,13 +135,23 @@ def natural_key(curie: str):
     return (prefix, int(local)) if local.isdigit() else (prefix, float("inf"), local)
 
 
-def canonical(obj):
-    """Sort list values so output is stable across runs."""
+def canonical(obj, sort_by: dict[str, list[str]], slot: str | None = None):
+    """Sort list values so output is stable across runs and diffs stay local.
+
+    Lists of objects are sorted by the fields named for their slot in `sort_by`,
+    then by their full content as a tie-breaker.
+    """
     if isinstance(obj, dict):
-        return {k: canonical(v) for k, v in obj.items()}
+        return {k: canonical(v, sort_by, k) for k, v in obj.items()}
     if isinstance(obj, list):
-        items = [canonical(v) for v in obj]
-        return sorted(items, key=lambda v: json.dumps(v, sort_keys=True))
+        items = [canonical(v, sort_by) for v in obj]
+        fields = sort_by.get(slot, [])
+
+        def key(v):
+            leading = [str(v.get(f, "")) for f in fields] if isinstance(v, dict) else []
+            return (leading, json.dumps(v, sort_keys=True))
+
+        return sorted(items, key=key)
     return obj
 
 

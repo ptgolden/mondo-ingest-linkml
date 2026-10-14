@@ -11,3 +11,8 @@ term_slots:
   replaced_by: replacement.csv
   consider: consider.csv
   mappings: mappings.csv
+
+# Sort order for lists of objects, so that a change to one item shows up as a
+# local edit in a diff, not a move. Unlisted slots sort by full content.
+sort_by:
+  mappings: [object_id, predicate_id]

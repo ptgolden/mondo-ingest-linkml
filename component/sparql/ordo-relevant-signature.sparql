@@ -1,0 +1,33 @@
+# Copied verbatim from monarch-initiative/mondo-ingest@0dc67c4 src/sparql/ordo-relevant-signature.sparql
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+prefix xref: <http://www.geneontology.org/formats/oboInOwl#hasDbXref>
+
+
+# For ORPHANET, we are only interested in the Disease branch
+SELECT DISTINCT ?term
+WHERE {
+  { 
+    { 
+    VALUES ?ordo_roots {<http://www.orpha.net/ORDO/Orphanet_557493> <http://www.orpha.net/ORDO/Orphanet_557492> <http://www.orpha.net/ORDO/Orphanet_557494> <http://www.orpha.net/ORDO/Orphanet_C041>}
+     ?s1 ?p1 ?term .
+     ?term rdfs:subClassOf* ?ordo_roots .
+     FILTER NOT EXISTS {
+       ?term xref: ?xref .
+       FILTER(STRSTARTS(str(?xref),"HGNC:"))
+     }
+     FILTER(isIRI(?term))
+    }
+    UNION
+    { 
+      VALUES ?ordo_roots {<http://www.orpha.net/ORDO/Orphanet_557493> <http://www.orpha.net/ORDO/Orphanet_557492> <http://www.orpha.net/ORDO/Orphanet_557494> <http://www.orpha.net/ORDO/Orphanet_C041>}
+      ?term ?p2 ?o2 .
+      ?term rdfs:subClassOf* ?ordo_roots .
+      FILTER NOT EXISTS {
+        ?term xref: ?xref .
+        FILTER(STRSTARTS(str(?xref),"HGNC:"))
+      }
+      FILTER(isIRI(?term))
+    }
+  }
+  
+}

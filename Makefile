@@ -1,6 +1,7 @@
 # ORDO source pipeline (experiment).
 #
 #   make            download (if needed), extract, assemble, project SSSOM, render OWL
+#   make component  build the Mondo-facing ORDO component (Mondo policy applied)
 #   make validate   validate the release against the schema, and the SSSOM file
 #   make refresh    re-download the latest ORDO release, then build
 #
@@ -22,7 +23,7 @@ RELEASE := release
 
 GENERATED_BY = $(shell git remote get-url origin 2>/dev/null || echo $(CURDIR))@$(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD -- || echo -dirty)
 
-.PHONY: all validate refresh clean
+.PHONY: all component validate refresh clean
 all: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml $(RELEASE)/ordo.sssom.tsv $(RELEASE)/ordo.linkml.owl
 
 $(TMP)/ordo.owl:
@@ -91,6 +92,42 @@ $(RELEASE)/ordo.linkml.owl: $(TMP)/templates/.done
 		$$(sed 's/^/--template /' $(TMP)/templates/templates.txt) \
 		annotate --add-prefixes $(TMP)/templates/prefixes.json \
 		--ontology-iri $(RENDERED_IRI) $$(cat $(TMP)/templates/annotate-args.txt) \
+		--output $@
+
+# ── Mondo-facing component ─────────────────────────────────────────────────────
+# Mondo's editorial policy for ORDO, applied to the LinkML OWL rendering. Mirrors
+# mondo-ingest's $(COMPONENTSDIR)/ordo.owl recipe step for step; see
+# component/README.md for what was copied, adapted, dropped and fixed.
+COMPONENT_IRI := http://purl.obolibrary.org/obo/mondo/sources/ordo.owl
+TODAY := $(shell date +%Y-%m-%d)
+POLICY := component/sparql
+
+component: $(RELEASE)/ordo.owl
+
+$(TMP)/ordo_relevant_signature.txt $(TMP)/ordo_annotated_signature.txt &: $(RELEASE)/ordo.linkml.owl $(POLICY)/ordo-construct-subclass-from-part-of.ru $(POLICY)/ordo-relevant-signature.sparql $(POLICY)/ordo-relevant-signature-ancestors.sparql
+	robot query -i $< --update $(POLICY)/ordo-construct-subclass-from-part-of.ru \
+		query --query $(POLICY)/ordo-relevant-signature.sparql $(TMP)/ordo_relevant_signature.txt \
+		      --query $(POLICY)/ordo-relevant-signature-ancestors.sparql $(TMP)/ordo_signature_ancestors.txt
+	cat $(TMP)/ordo_relevant_signature.txt $(TMP)/ordo_signature_ancestors.txt > $(TMP)/ordo_annotated_signature.txt
+
+$(RELEASE)/ordo.owl: $(RELEASE)/ordo.linkml.owl $(TMP)/ordo_relevant_signature.txt $(TMP)/ordo_annotated_signature.txt component/property-map.sssom.tsv component/properties.txt $(wildcard $(POLICY)/*.ru)
+	robot rename -i $< --mappings component/property-map.sssom.tsv \
+			--allow-missing-entities true --allow-duplicates true \
+		query \
+			--update $(POLICY)/fix_deprecated.ru \
+			--update $(POLICY)/fix-labels-with-brackets.ru \
+			--update $(POLICY)/exact_syn_from_label.ru \
+			--update $(POLICY)/ordo-construct-subclass-from-part-of.ru \
+			--update $(POLICY)/ordo-construct-subsets.ru \
+			--update $(POLICY)/ordo-construct-d2g.ru \
+			--update $(POLICY)/mondo-ingest-mapping-iris.ru \
+			--update $(POLICY)/drop-obsoletion-reasons.ru \
+			--update $(POLICY)/drop-definition-citations.ru \
+		remove --term oboInOwl:hasDbXref --axioms annotation \
+		remove -T $(TMP)/ordo_annotated_signature.txt --select complement --select classes --axioms annotation --trim true \
+		remove -T $(TMP)/ordo_relevant_signature.txt --select complement --select "classes individuals" --trim false \
+		remove -T component/properties.txt --select complement --select properties --trim true \
+		annotate --ontology-iri $(COMPONENT_IRI) --version-iri http://purl.obolibrary.org/obo/mondo/sources/$(TODAY)/ordo.owl \
 		--output $@
 
 validate: all

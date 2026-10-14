@@ -5,7 +5,16 @@ An initial experiment for [mondo-ingest#925](https://github.com/monarch-initiati
 
 The question: what does a source repo look like if it publishes LinkML data plus a
 derived SSSOM file, while keeping well-defined semantics (OWL parsed by ROBOT,
-transformations in SPARQL) and as little bespoke Python as possible?
+transformations in SPARQL) and as little bespoke Python as possible? And can it also
+produce everything mondo-ingest needs for the source, so mondo-ingest only downloads files
+(as mondo-ingest#906 does for ICD10WHO)?
+
+There are two layers:
+
+1. **The release**: what ORDO says, with no Mondo policy (`ordo.yaml` and its derived
+   SSSOM and OWL).
+2. **The component bundle**: the release with Mondo's editorial policy applied, in exactly
+   the files and shapes mondo-ingest consumes today. See [component/README.md](component/README.md).
 
 This is not production code. Things here that would live in mondo-ingest in the target
 architecture (the schema, the prefix map, the generic assembler) are kept here only so the
@@ -13,11 +22,13 @@ experiment is self-contained.
 
 ## Running it
 
-Needs `uv`, `robot` (tested with 1.9.7), `curl`, and GNU Make 4.3+.
+Needs `uv`, `robot` (tested with 1.9.7), `curl` and GNU Make 4.3+. `make component` also
+needs Docker, for the `obolibrary/odkfull:v1.6` image (ODK's ROBOT plugins and semsql).
 
 ```sh
-make            # download ORDO if needed, extract, assemble, project SSSOM
-make validate   # linkml-validate the release; sssom validate the SSSOM file
+make            # download ORDO if needed; build the release
+make component  # build the bundle mondo-ingest downloads
+make validate   # linkml-validate the release; sssom validate its SSSOM file
 make refresh    # re-download the newest ORDO, then build
 ```
 
@@ -27,14 +38,22 @@ Outputs, in `release/`:
 |---|---|
 | `ordo.yaml` | The release: `metadata` and `terms` (each term carrying its SSSOM `mappings`), per `schema/mondo_source.yaml` |
 | `ordo.metadata.yaml` | Just the `metadata` block (source version, schema version, generated_at, ...) |
-| `ordo.sssom.tsv` | The terms' mappings, flattened. Never edited directly. |
+| `ordo.source.sssom.tsv` | The terms' mappings, flattened. Never edited directly. |
+| `ordo.linkml.owl` | The release rendered as OWL (the "LinkML owl rendering" #925 asks for) |
+
+and from `make component`: `ordo.owl`, `ordo.db`, `mirror-ordo.owl`,
+`mirror_signature-ordo.tsv`, `component_signature-ordo.tsv`, `ordo.sssom.tsv` and
+`ordo-metrics.json`, named as mondo-ingest's targets expect. (The release's SSSOM is called
+`ordo.source.sssom.tsv` so that both fit in one flat GitHub release.)
 
 ## How it works
 
 ```
 ORDO OWL --robot query (9 SPARQL SELECTs, one load)--> CSVs
 CSVs --assemble (generic, schema-driven)--> ordo.yaml
-ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
+ordo.yaml --sssom (generic projection)--> ordo.source.sssom.tsv
+ordo.yaml --robot_templates (flatten to TSV)--> robot template --> ordo.linkml.owl
+ordo.linkml.owl --robot rename/query/remove (component/)--> ordo.owl --> rest of the bundle
 ```
 
 - **ROBOT does all the RDF work.** Every source-specific decision lives in `sparql/*.rq`:
@@ -43,7 +62,9 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
 - **Python only reshapes tables.** `assemble.py` uses the schema (via SchemaView) to decide
   what is multivalued, inlined, boolean or a CURIE. It knows nothing about ORDO or RDF,
   so the same code should work for any source whose queries follow the convention.
-  `sssom.py` is a projection of the release. Together they are about 230 non-comment lines.
+  `sssom.py` is a projection of the release. `robot_templates.py` flattens the release
+  into ROBOT template TSVs, taking OWL properties from the schema's slot URIs, so ROBOT
+  builds the OWL.
 - **Fail hard.** Assembly stops on two values for a single-valued slot, a row for a term
   that doesn't exist, a malformed CURIE, or a prefix missing from `config/prefixes.yaml`.
 
@@ -92,6 +113,16 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
   the code relation, so it goes into the mapping's `comment`. mondo-ingest currently keeps
   neither: its `ordo.sssom.tsv` marks every row `semapv:UnspecifiedMatching` and has no
   comment.
+- **mondo-ingest's ORDO output has bugs the component fixes.** Details are in
+  [component/README.md](component/README.md#fixes-relative-to-mondo-ingests-output). In
+  brief:
+  - labels and synonyms remain for 4,579 removed gene classes;
+  - mapping objects are string literals with raw ORDO prefixes;
+  - replacement pointers and mapping justifications are dropped;
+  - loss-of-function gene relations are labelled gain-of-function (1,222 in 4.9);
+  - 4.9's capitalised labels would rename Mondo's `ordo_*` subsets;
+  - six ICD-11 mappings are silently lost;
+  - its `ordo.sssom.tsv` fails `sssom validate`.
 - **Data quality issues the pipeline exposed:**
   - Ten ICD-11 xrefs contain non-breaking spaces.
   - 12 classes have both `"X"` and `"X"@en` labels.
@@ -112,7 +143,13 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
 ### About the approach
 
 - **ROBOT plus SPARQL is fast enough here.** Loading ORDO once and running all nine queries
-  takes about 16 s. The full `make all` from a cold download is about 49 s.
+  takes about 16 s. The full `make all` from a cold download is about 49 s. Rendering the
+  release to OWL with ROBOT templates takes about 20 s, and round-trips every count. The
+  component takes about 2 minutes, and the whole bundle about 4.
+- **The component reproduces mondo-ingest's.** Built from ORDO 4.7, it matches
+  mondo-ingest's released `ordo.owl` and `ordo.sssom.tsv` (v2026-01-24, also from 4.7) on
+  every facet compared, except for the deliberate fixes. Mondo's policy for ORDO is now
+  ROBOT and SPARQL in one directory; most of the queries are mondo-ingest's own, unchanged.
 - **YAML is the bottleneck, and a correctness hazard.**
   - Parsing the 25 MB `ordo.yaml` takes 10.8 s with PyYAML's C loader, 58.8 s with ruamel
     (YAML 1.2), and 0.23 s for the same content as JSON.
@@ -134,15 +171,18 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
 
 ## Open questions
 
-- **Where does Mondo editorial policy live?** Examples are part_of-as-is_a, ORDO synonyms
-  as EXACT, and generated synonyms. Requirement 5 says no source processing in mondo-ingest, but
-  these aren't facts about ORDO. If they move to the source repo, the release stops being a
-  faithful record of the source.
+- **Where does Mondo editorial policy live?** For now, in this repo's `component/`,
+  applied on top of the release, so the release itself stays a faithful record. Whether
+  that holds for every mondo-ingest step is open. Nico's concern on #906 still stands: some
+  steps need all sources at once, and those can't move into a single source repo.
+- **Switching mondo-ingest over.** It would download the bundle the way it does ICD10WHO's
+  (`ORDO_RELEASE_BASE` plus `wget` targets). The `.db`'s CURIEs change (see
+  [component/README.md](component/README.md#known-compatibility-notes-not-fixed)), and any
+  mondo-ingest code reading mappings from it would need checking.
 - **Gene classes.** They are included as terms, with gene-disease relations on the gene, as
   ORDO asserts them. Should mondo-ingest get them in that form?
 - **Which classes are in scope?** The release contains every ORDO class: clinical entities,
   inactive entities, genes and typology classes. Today mondo-ingest's
   `ordo-relevant-signature.sparql` decides which are diseases.
 - **The non-OWL path.** It isn't exercised here. OMIM would be the next test.
-- **The LinkML OWL rendering** that #925 requires is not produced here.
 - **`mapping_set_id`** is a placeholder; the PURL scheme isn't decided yet.

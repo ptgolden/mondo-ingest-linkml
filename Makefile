@@ -1,7 +1,9 @@
 # ORDO source pipeline (experiment).
 #
 #   make            download (if needed), extract, assemble, project SSSOM, render OWL
-#   make component  build the Mondo-facing ORDO component (Mondo policy applied)
+#   make component  build the Mondo-facing bundle mondo-ingest downloads
+#                   (component with Mondo policy applied, mirror, signatures,
+#                   SSSOM, metrics, semsql db); needs Docker for the last two steps
 #   make validate   validate the release against the schema, and the SSSOM file
 #   make refresh    re-download the latest ORDO release, then build
 #
@@ -11,7 +13,7 @@
 # exact version is recorded from the file's own owl:versionIRI in the release metadata.
 ORDO_URL := https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_orphanet.owl
 RENDERED_IRI := https://w3id.org/monarch-initiative/mondo-ingest/sources/ordo/ordo.linkml.owl
-MAPPING_SET_ID := https://w3id.org/monarch-initiative/mondo-ingest/sources/ordo/ordo.sssom.tsv
+MAPPING_SET_ID := https://w3id.org/monarch-initiative/mondo-ingest/sources/ordo/ordo.source.sssom.tsv
 
 SCHEMA := schema/mondo_source.yaml
 SCHEMA_VERSION := $(shell sed -n 's/^version: *//p' $(SCHEMA))
@@ -24,7 +26,7 @@ RELEASE := release
 GENERATED_BY = $(shell git remote get-url origin 2>/dev/null || echo $(CURDIR))@$(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD -- || echo -dirty)
 
 .PHONY: all component validate refresh clean
-all: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml $(RELEASE)/ordo.sssom.tsv $(RELEASE)/ordo.linkml.owl
+all: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml $(RELEASE)/ordo.source.sssom.tsv $(RELEASE)/ordo.linkml.owl
 
 $(TMP)/ordo.owl:
 	mkdir -p $(TMP)
@@ -66,7 +68,7 @@ $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(TMP)/
 		--output $(RELEASE)/ordo.yaml \
 		--metadata-output $(RELEASE)/ordo.metadata.yaml
 
-$(RELEASE)/ordo.sssom.tsv: $(RELEASE)/ordo.yaml config/prefixes.yaml $(PYTHON_SRC)
+$(RELEASE)/ordo.source.sssom.tsv: $(RELEASE)/ordo.yaml config/prefixes.yaml $(PYTHON_SRC)
 	uv run python -m mondo_ingest_ordo.sssom $< \
 		--prefixes config/prefixes.yaml \
 		--mapping-set-id $(MAPPING_SET_ID) \
@@ -102,7 +104,20 @@ COMPONENT_IRI := http://purl.obolibrary.org/obo/mondo/sources/ordo.owl
 TODAY := $(shell date +%Y-%m-%d)
 POLICY := component/sparql
 
-component: $(RELEASE)/ordo.owl
+# The files mondo-ingest downloads for ORDO, named as its targets expect
+# (cf. ICD10WHO_DOWNLOADS in mondo-ingest.Makefile).
+BUNDLE := $(RELEASE)/ordo.owl $(RELEASE)/ordo.db $(RELEASE)/mirror-ordo.owl \
+	$(RELEASE)/mirror_signature-ordo.tsv $(RELEASE)/component_signature-ordo.tsv \
+	$(RELEASE)/ordo.sssom.tsv $(RELEASE)/ordo-metrics.json
+
+component: $(BUNDLE)
+
+# Steps that need ODK's ROBOT plugins or semsql run in the ODK image. Paths are
+# mounted at the same absolute location so TMP/RELEASE overrides keep working.
+ODK_IMAGE := obolibrary/odkfull:v1.6
+ODK = docker run --rm -u $$(id -u):$$(id -g) -e ROBOT_PLUGINS_DIRECTORY=/tools/robot-plugins \
+	$(foreach d,$(sort $(CURDIR) $(abspath $(TMP)) $(abspath $(RELEASE))),-v $(d):$(d)) \
+	-w $(CURDIR) $(ODK_IMAGE)
 
 $(TMP)/ordo_relevant_signature.txt $(TMP)/ordo_annotated_signature.txt &: $(RELEASE)/ordo.linkml.owl $(POLICY)/ordo-construct-subclass-from-part-of.ru $(POLICY)/ordo-relevant-signature.sparql $(POLICY)/ordo-relevant-signature-ancestors.sparql
 	robot query -i $< --update $(POLICY)/ordo-construct-subclass-from-part-of.ru \
@@ -130,9 +145,50 @@ $(RELEASE)/ordo.owl: $(RELEASE)/ordo.linkml.owl $(TMP)/ordo_relevant_signature.t
 		annotate --ontology-iri $(COMPONENT_IRI) --version-iri http://purl.obolibrary.org/obo/mondo/sources/$(TODAY)/ordo.owl \
 		--output $@
 
+# mondo-ingest's mirror recipe, on the downloaded ORDO.
+$(RELEASE)/mirror-ordo.owl: $(TMP)/ordo.owl
+	$(ODK) robot merge -i $(abspath $<) odk:normalize --add-source true --output $(abspath $@)
+
+$(RELEASE)/mirror_signature-ordo.tsv: $(RELEASE)/mirror-ordo.owl component/sparql/classes.sparql
+	robot query -i $< --query component/sparql/classes.sparql $@
+	(head -n 1 $@ && tail -n +2 $@ | sort) > $@-temp
+	mv $@-temp $@
+
+$(RELEASE)/component_signature-ordo.tsv: $(RELEASE)/ordo.owl component/sparql/classes.sparql
+	robot query -i $< --query component/sparql/classes.sparql $@
+	(head -n 1 $@ && tail -n +2 $@ | sort) > $@-temp
+	mv $@-temp $@
+
+$(RELEASE)/ordo-metrics.json: $(RELEASE)/ordo.owl
+	robot measure --prefix 'OMIM: http://omim.org/entry/' \
+		--prefix 'CHR: http://purl.obolibrary.org/obo/CHR_' \
+		--prefix 'UMLS: http://linkedlifedata.com/resource/umls/id/' \
+		--prefix 'HGNC: https://www.genenames.org/data/gene-symbol-report/\#!/hgnc_id/' \
+		--prefix 'biolink: https://w3id.org/biolink/vocab/' \
+		-i $< --format json --metrics extended --output $@
+
+# mondo-ingest's %.db rule. semsql writes next to its input, so build in TMP.
+$(RELEASE)/ordo.db: $(RELEASE)/ordo.owl component/prefixes.csv
+	mkdir -p $(TMP)/semsql
+	cp $< $(TMP)/semsql/ordo.owl
+	rm -f $(TMP)/semsql/ordo.db
+	cd $(TMP)/semsql && $(ODK) sh -c 'cd $(abspath $(TMP))/semsql && RUST_BACKTRACE=full semsql make ordo.db -P $(CURDIR)/component/prefixes.csv'
+	test -f $(TMP)/semsql/ordo.db
+	mv $(TMP)/semsql/ordo.db $@
+
+$(TMP)/component-mappings.csv: $(RELEASE)/ordo.owl component/sparql/component-mappings.sparql
+	robot query -i $< --format csv --query component/sparql/component-mappings.sparql $@
+
+$(RELEASE)/ordo.sssom.tsv: $(TMP)/component-mappings.csv component/ordo.metadata.sssom.yml component/sssom-extra-prefixes.yaml $(PYTHON_SRC)
+	uv run python -m mondo_ingest_ordo.component_sssom $< \
+		--metadata component/ordo.metadata.sssom.yml \
+		--extra-prefixes component/sssom-extra-prefixes.yaml \
+		--set mapping_set_version=$$(sed -n "s/^source_version: *'\{0,1\}\([^']*\)'\{0,1\}$$/\1/p" $(RELEASE)/ordo.metadata.yaml) \
+		--output $@
+
 validate: all
 	uv run linkml-validate -s $(SCHEMA) -C SourceRelease $(RELEASE)/ordo.yaml
-	uv run sssom validate $(RELEASE)/ordo.sssom.tsv
+	uv run sssom validate $(RELEASE)/ordo.source.sssom.tsv
 
 clean:
 	rm -rf $(TMP)/query $(RELEASE)

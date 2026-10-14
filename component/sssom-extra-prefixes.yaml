@@ -1,0 +1,6 @@
+# Prefixes mondo-ingest's mappings/ordo.sssom.tsv uses that are not in
+# ordo.metadata.sssom.yml: mondo-ingest's `sssom parse --prefix-map-mode merged`
+# takes them from sssom-py's built-in prefix map. Values as in mondo-ingest's
+# released ordo.sssom.tsv (v2026-01-24).
+MONDO: http://purl.obolibrary.org/obo/MONDO_
+icd11.foundation: http://id.who.int/icd/entity/

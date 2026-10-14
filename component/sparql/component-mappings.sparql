@@ -1,0 +1,28 @@
+# The component's mappings, for ordo.sssom.tsv. Reading them back out of the
+# component (not from the release) keeps the SSSOM file and the OWL in agreement.
+prefix owl: <http://www.w3.org/2002/07/owl#>
+prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+prefix skos: <http://www.w3.org/2004/02/skos/core#>
+prefix sssom: <https://w3id.org/sssom/>
+
+SELECT ?subject_id ?subject_label ?predicate_id ?object_id ?mapping_justification ?comment
+WHERE {
+  VALUES ?p { skos:exactMatch skos:broadMatch skos:narrowMatch skos:closeMatch skos:relatedMatch }
+  ?s ?p ?o .
+  FILTER(isIRI(?o))
+  OPTIONAL { ?s rdfs:label ?l }
+  OPTIONAL {
+    ?ax a owl:Axiom ;
+        owl:annotatedSource ?s ;
+        owl:annotatedProperty ?p ;
+        owl:annotatedTarget ?o .
+    OPTIONAL { ?ax sssom:mapping_justification ?j }
+    OPTIONAL { ?ax rdfs:comment ?c }
+  }
+  BIND(STR(?s) AS ?subject_id)
+  BIND(STR(?l) AS ?subject_label)
+  BIND(STR(?p) AS ?predicate_id)
+  BIND(STR(?o) AS ?object_id)
+  BIND(STR(?j) AS ?mapping_justification)
+  BIND(STR(?c) AS ?comment)
+}

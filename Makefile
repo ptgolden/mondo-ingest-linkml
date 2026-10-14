@@ -6,9 +6,8 @@
 #
 # ROBOT does all RDF work. Python only reshapes ROBOT's query results.
 
-# Stable URL for the current English ORDO. (The orphadata.org URL mondo-ingest
-# uses is frozen at 4.7.) The exact version is recorded from the file's own
-# owl:versionIRI in the release metadata.
+# Stable URL for the current English ORDO (the same one mondo-ingest uses). The
+# exact version is recorded from the file's own owl:versionIRI in the release metadata.
 ORDO_URL := https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_orphanet.owl
 MAPPING_SET_ID := https://w3id.org/monarch-initiative/mondo-ingest/sources/ordo/ordo.sssom.tsv
 

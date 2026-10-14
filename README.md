@@ -76,12 +76,12 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
 
 ### About ORDO and the current pipeline
 
-- **mondo-ingest is ingesting a stale ORDO.** Its `ORDO=` URL
-  (`http://www.orphadata.org/data/ORDO/ordo_orphanet.owl`) still serves **4.7 (June 2025)**.
-  The current release is **4.9 (June 2026)**, on orphadata.com.
-- **The stable URL for current ORDO** is
-  `https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_orphanet.owl`, which
-  serves the same file as the versioned `ORDO_en_4.9.owl`. mondo-ingest should switch to it.
+- **The old orphadata.org URL is frozen at 4.7.** `http://www.orphadata.org/data/ORDO/ordo_orphanet.owl`
+  still serves 4.7 (June 2025). The current release is 4.9 (June 2026), at
+  `https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_orphanet.owl`, which serves
+  the same file as the versioned `ORDO_en_4.9.owl`. mondo-ingest's main branch already uses
+  the orphadata.com URL (an earlier version of this note said otherwise, based on an outdated
+  local clone). Its latest release, v2026-01-24, was built from 4.7.
 - **4.9 changed shape compared with 4.7.** 4.9 adds `owl:deprecated` (4.7 marked obsoletion
   only through its typology classes) and a new `Orphanet_C059` website-link property.
   `fix_complex_reification_ordo.ru` in mondo-ingest targets a nested-annotation layout that

@@ -6,10 +6,10 @@
 #
 # ROBOT does all RDF work. Python only reshapes ROBOT's query results.
 
-# ORDO has no stable "latest" URL: the old orphadata.org path is frozen at 4.7,
-# the current filename embeds the version, and the last_version/ directory
-# listing is 403. So we read the link off the ORDO landing page.
-ORDO_PAGE := https://www.orphadata.com/ordo/
+# Stable URL for the current English ORDO. (The orphadata.org URL mondo-ingest
+# uses is frozen at 4.7.) The exact version is recorded from the file's own
+# owl:versionIRI in the release metadata.
+ORDO_URL := https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_orphanet.owl
 MAPPING_SET_ID := https://w3id.org/monarch-initiative/mondo-ingest/sources/ordo/ordo.sssom.tsv
 
 SCHEMA := schema/mondo_source.yaml
@@ -27,11 +27,9 @@ all: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml $(RELEASE)/ordo.sssom.ts
 
 $(TMP)/ordo.owl:
 	mkdir -p $(TMP)
-	url=$$(curl -sSfL $(ORDO_PAGE) | grep -o 'https://[^"]*/ORDO_en_[0-9.]*\.owl' | sort -uV | tail -1) && \
-	test -n "$$url" && \
-	curl -sSfL -o $@.part "$$url" && \
-	mv $@.part $@ && \
-	echo "$$url" > $(TMP)/source-url.txt
+	curl -sSfL -o $@.part $(ORDO_URL)
+	mv $@.part $@
+	echo $(ORDO_URL) > $(TMP)/source-url.txt
 
 refresh:
 	rm -f $(TMP)/ordo.owl $(TMP)/source-url.txt

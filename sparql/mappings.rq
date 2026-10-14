@@ -1,4 +1,4 @@
-# -> SourceRelease.mappings, one row per hasDbXref.
+# -> Term.mappings, one row per hasDbXref. ?id is the enclosing term (= ?subject_id).
 #
 # Predicate comes from ORDO's own precision code (ECO_0000218 axiom annotation),
 # which ORDO defines relative to the ORPHAcode:
@@ -16,7 +16,7 @@
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
 PREFIX obo: <http://purl.obolibrary.org/obo/>
-SELECT DISTINCT ?subject_id ?predicate_id ?object_id ?mapping_justification ?source_mapping_qualifier
+SELECT DISTINCT ?id ?subject_id ?predicate_id ?object_id ?mapping_justification ?source_mapping_qualifier
 WHERE {
   ?c oio:hasDbXref ?x .
   FILTER(STRSTARTS(STR(?c), "http://www.orpha.net/ORDO/Orphanet_"))
@@ -26,7 +26,8 @@ WHERE {
         owl:annotatedTarget ?x ;
         obo:ECO_0000218 ?q .
   }
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?subject_id)
+  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  BIND(?id AS ?subject_id)
 
   # Strip the leading "- " that multi-line qualifiers use, then read the code.
   BIND(REPLACE(STR(?q), "^- ", "") AS ?qs)

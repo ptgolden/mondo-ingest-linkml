@@ -10,4 +10,4 @@ term_slots:
   relationships: relationships.csv
   replaced_by: replacement.csv
   consider: consider.csv
-mappings: mappings.csv
+  mappings: mappings.csv

@@ -1,7 +1,7 @@
 """Project a SourceRelease's mappings to an SSSOM TSV.
 
-The SSSOM file is derived, never edited: every row comes from the release's
-`mappings`, and set-level metadata comes from the release's `metadata`.
+The SSSOM file is derived, never edited: every row is a mapping inlined on one
+of the release's terms, and set-level metadata comes from the release's `metadata`.
 """
 
 import argparse
@@ -30,14 +30,14 @@ EXTENSIONS = [
 
 
 def project(release: dict, prefixes: dict[str, str], mapping_set_id: str) -> tuple[dict, list[dict]]:
-    labels = {term["id"]: term["label"] for term in release["terms"]}
     rows = []
-    for mapping in release.get("mappings", []):
-        row = {**mapping, "subject_label": labels.get(mapping["subject_id"], "")}
-        # SSSOM/TSV cells cannot contain newlines.
-        if "source_mapping_qualifier" in row:
-            row["source_mapping_qualifier"] = " ".join(row["source_mapping_qualifier"].split("\n"))
-        rows.append(row)
+    for term in release["terms"]:
+        for mapping in term.get("mappings", []):
+            row = {**mapping, "subject_label": term["label"]}
+            # SSSOM/TSV cells cannot contain newlines.
+            if "source_mapping_qualifier" in row:
+                row["source_mapping_qualifier"] = " ".join(row["source_mapping_qualifier"].split("\n"))
+            rows.append(row)
 
     used = {
         row[col].split(":", 1)[0]

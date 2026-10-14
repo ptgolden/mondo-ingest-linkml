@@ -25,9 +25,9 @@ Outputs, in `release/`:
 
 | File | What it is |
 |---|---|
-| `ordo.yaml` | The release: `metadata`, `terms`, `mappings`, per `schema/mondo_source.yaml` |
+| `ordo.yaml` | The release: `metadata` and `terms` (each term carrying its SSSOM `mappings`), per `schema/mondo_source.yaml` |
 | `ordo.metadata.yaml` | Just the `metadata` block (source version, schema version, generated_at, ...) |
-| `ordo.sssom.tsv` | Derived from `ordo.yaml`'s mappings. Never edited directly. |
+| `ordo.sssom.tsv` | The terms' mappings, flattened. Never edited directly. |
 
 ## How it works
 
@@ -60,8 +60,17 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
 3. **No overloaded fields.** OBO's `xref` and `source` are split into a mapping predicate
    (`predicate_id`), a mapping justification, definition `citations`, and the source's own
    qualifier kept verbatim (`source_mapping_qualifier`).
-4. **Mappings use SSSOM slot names,** so the SSSOM file is a projection and not a second
-   source of truth.
+4. **Mappings are real SSSOM mappings, inline on their term.** The schema imports the
+   `sssom-schema` package and `Term.mappings` is a subclass of its `mapping` class that adds only
+   `source_mapping_qualifier`. A curator reading a term sees its mappings next to its
+   obsoletion status, and the SSSOM file is a flattening, not a second source of truth.
+   Because SSSOM requires `subject_id`, each inline mapping repeats its term's id; the
+   assembler checks they match.
+
+   The SSSOM schema has no PURL for its YAML, so the import goes through a `sssom_schema:`
+   prefix pinned to the v1.0.0 GitHub URL. The build redirects that prefix to the installed
+   package (same version, pinned in `pyproject.toml`) with a LinkML importmap.
+   `linkml-validate` has no importmap option and fetches the URL.
 
 ## Findings
 
@@ -88,7 +97,7 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
     UniProt accessions; none are valid IDs in those namespaces.
   - ORDO's ICD-11 xrefs are MMS codes, not Foundation IDs, and there's no agreed Mondo
     prefix for them.
-- **Hub-side check (#900-style).** Mondo's `mondo_exactmatch_orphanet.sssom.tsv` (local
+- **mondo-ingest-side check (#900-style).** Mondo's `mondo_exactmatch_orphanet.sssom.tsv` (local
   clone, 2026-08-04) has 9,785 rows. Against ORDO 4.9:
   - 9,511 point at active terms;
   - 216 at deprecated terms with `consider` targets;
@@ -113,7 +122,7 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
   - YAML stays the published format because curators need to read these files. The costs
     above are manageable: parsing with the C loader and validating with JSON Schema in memory
     takes about 17 s, against 51–70 s for the off-the-shelf validators. A machine-only JSON
-    sidecar, generated in the same step, is an option if hub load time ever matters.
+    sidecar, generated in the same step, is an option if mondo-ingest's load time ever matters.
 - **The schema validators miss CURIE syntax.** `uriorcurie` becomes an unconstrained
   string in JSON Schema, so the NBSP xrefs passed both `linkml-validate` and JSON Schema.
   Only `sssom validate` caught them, and it reported 7 of the 10. The assembler now checks
@@ -124,11 +133,11 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
 ## Open questions
 
 - **Where does Mondo editorial policy live?** Examples are part_of-as-is_a, ORDO synonyms
-  as EXACT, and generated synonyms. Requirement 5 says no source processing in the hub, but
+  as EXACT, and generated synonyms. Requirement 5 says no source processing in mondo-ingest, but
   these aren't facts about ORDO. If they move to the source repo, the release stops being a
   faithful record of the source.
 - **Gene classes.** They are included as terms, with gene-disease relations on the gene, as
-  ORDO asserts them. Should the hub get them in that form?
+  ORDO asserts them. Should mondo-ingest get them in that form?
 - **Which classes are in scope?** The release contains every ORDO class: clinical entities,
   inactive entities, genes and typology classes. Today mondo-ingest's
   `ordo-relevant-signature.sparql` decides which are diseases.

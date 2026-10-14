@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "linkml-runtime>=1.12.1",
     "pyyaml>=6.0.3",
+    "sssom-schema==1.0.0",
 ]
 
 [build-system]

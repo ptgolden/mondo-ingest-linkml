@@ -2,7 +2,7 @@ id: https://w3id.org/monarch-initiative/mondo-source/experimental
 name: mondo_source
 title: Mondo source schema (experimental draft)
 description: >-
-  Shape of one source's release as consumed by the mondo-ingest hub.
+  Shape of one source's release as consumed by mondo-ingest.
 
   EXPERIMENT: in the target architecture this file lives only in mondo-ingest and
   source repos fetch it by PURL. It is here so the ORDO experiment is self-contained.
@@ -11,11 +11,12 @@ description: >-
   (1) Record what the source says, translated into standard vocabulary where the
   source itself defines the meaning (e.g. ORDO's "E" precision code -> skos:exactMatch).
   Do not apply Mondo editorial policy (e.g. treating part_of as is_a, assuming
-  synonym scope, generating synonyms from labels); that belongs to the hub.
+  synonym scope, generating synonyms from labels); that belongs to mondo-ingest.
   (2) No overloaded fields. OBO's `xref` and `source` are split into a mapping
   predicate, a mapping justification, citations, and a verbatim source qualifier.
-  (3) Mappings use SSSOM slot names and URIs, so the SSSOM file is a projection
-  of this data, not a second source of truth.
+  (3) Mappings are SSSOM mappings (the sssom-schema `mapping` class), inlined on
+  the term they are about, so the SSSOM file is a projection of this data, not a
+  second source of truth.
 version: 0.1.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
 
@@ -29,12 +30,18 @@ prefixes:
   rdfs: http://www.w3.org/2000/01/rdf-schema#
   IAO: http://purl.obolibrary.org/obo/IAO_
   sssom: https://w3id.org/sssom/
+  # The SSSOM schema has no PURL for its YAML; this pins the release matching the
+  # sssom-schema package version in pyproject.toml. Builds redirect this prefix to
+  # the installed package with an importmap; tools without importmap support
+  # (linkml-validate) fetch it from here.
+  sssom_schema: https://raw.githubusercontent.com/mapping-commons/sssom/v1.0.0/src/sssom_schema/schema/
 
 default_prefix: mondo_source
 default_range: string
 
 imports:
   - linkml:types
+  - sssom_schema:sssom_schema
 
 classes:
 
@@ -51,15 +58,10 @@ classes:
         multivalued: true
         inlined_as_list: true
         required: true
-      mappings:
-        description: Every mapping the source asserts, one row per (subject, object, predicate).
-        range: Mapping
-        multivalued: true
-        inlined_as_list: true
 
   ReleaseMetadata:
     description: >-
-      Freshness contract. The hub fails the build if schema_version does not match
+      Freshness contract. mondo-ingest fails the build if schema_version does not match
       the schema it runs against, or if the release is older than it allows.
     attributes:
       source_id:
@@ -115,7 +117,7 @@ classes:
         description: >-
           Direct rdfs:subClassOf parents that are named classes, exactly as asserted by
           the source. Whether other relations (e.g. part_of) should be treated as
-          hierarchy is a hub decision, not recorded here.
+          hierarchy is a mondo-ingest decision, not recorded here.
         range: uriorcurie
         multivalued: true
         slot_uri: rdfs:subClassOf
@@ -138,6 +140,13 @@ classes:
         range: uriorcurie
         multivalued: true
         slot_uri: oboInOwl:consider
+      mappings:
+        description: >-
+          Every mapping the source asserts from this term. Each is a full SSSOM
+          mapping, so subject_id repeats this term's id (the assembler checks it).
+        range: SourceMapping
+        multivalued: true
+        inlined_as_list: true
 
   Definition:
     attributes:
@@ -156,7 +165,7 @@ classes:
       scope:
         description: >-
           Synonym scope as stated by the source. Absent means the source does not
-          say; the hub decides how to interpret unscoped synonyms.
+          say; mondo-ingest decides how to interpret unscoped synonyms.
         range: SynonymScope
       synonym_type:
         description: A synonym type CURIE (e.g. ABBREVIATION), if the source states one.
@@ -171,33 +180,17 @@ classes:
         range: uriorcurie
         required: true
 
-  Mapping:
+  SourceMapping:
+    is_a: mapping
     description: >-
-      A mapping asserted by the source. Slot names and URIs follow SSSOM so that
-      the release's SSSOM file is a direct projection.
+      An SSSOM mapping asserted by the source, plus the source's own qualifier.
     attributes:
-      subject_id:
-        range: uriorcurie
-        slot_uri: sssom:subject_id
-        required: true
-      predicate_id:
-        range: uriorcurie
-        slot_uri: sssom:predicate_id
-        required: true
-      object_id:
-        range: uriorcurie
-        slot_uri: sssom:object_id
-        required: true
-      mapping_justification:
-        range: uriorcurie
-        slot_uri: sssom:mapping_justification
-        required: true
       source_mapping_qualifier:
         description: >-
           The source's own qualifier on this mapping, verbatim, for audit. Kept
           because some sources pack more into it than SSSOM has a slot for
           (ORDO adds an ICD code-relation type next to the precision code).
-          Not an SSSOM slot.
+          Written to SSSOM files as an extension slot.
 
 enums:
   SynonymScope:

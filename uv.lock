@@ -797,6 +797,7 @@ source = { editable = "." }
 dependencies = [
     { name = "linkml-runtime" },
     { name = "pyyaml" },
+    { name = "sssom-schema" },
 ]
 
 [package.dev-dependencies]
@@ -811,6 +812,7 @@ dev = [
 requires-dist = [
     { name = "linkml-runtime", specifier = ">=1.12.1" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "sssom-schema", specifier = "==1.0.0" },
 ]
 
 [package.metadata.requires-dev]

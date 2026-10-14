@@ -37,6 +37,13 @@ refresh:
 	rm -f $(TMP)/ordo.owl $(TMP)/source-url.txt
 	$(MAKE) all
 
+# Resolve the schema's sssom_schema: import to the installed sssom-schema package
+# (pinned in pyproject.toml to the same version as the URL in the schema).
+$(TMP)/importmap.json: pyproject.toml uv.lock
+	mkdir -p $(TMP)
+	uv run python -c 'import json, pathlib, sssom_schema; \
+		print(json.dumps({"sssom_schema:": str(pathlib.Path(sssom_schema.__file__).parent / "schema") + "/"}))' > $@
+
 # One ROBOT invocation loads ORDO once and runs every query.
 $(TMP)/query/.done: $(TMP)/ordo.owl $(QUERIES)
 	mkdir -p $(TMP)/query
@@ -44,12 +51,13 @@ $(TMP)/query/.done: $(TMP)/ordo.owl $(QUERIES)
 		$(foreach q,$(QUERIES),--query $(q) $(TMP)/query/$(basename $(notdir $(q))).csv)
 	touch $@
 
-$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(SCHEMA) config/assembly.yaml config/prefixes.yaml $(PYTHON_SRC)
+$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(TMP)/importmap.json $(SCHEMA) config/assembly.yaml config/prefixes.yaml $(PYTHON_SRC)
 	mkdir -p $(RELEASE)
 	uv run python -m mondo_ingest_ordo.assemble \
 		--schema $(SCHEMA) \
 		--prefixes config/prefixes.yaml \
 		--config config/assembly.yaml \
+		--importmap $(TMP)/importmap.json \
 		--query-dir $(TMP)/query \
 		--set source_id=ordo \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
@@ -65,6 +73,8 @@ $(RELEASE)/ordo.sssom.tsv: $(RELEASE)/ordo.yaml config/prefixes.yaml $(PYTHON_SR
 		--mapping-set-id $(MAPPING_SET_ID) \
 		--output $@
 
+# linkml-validate has no importmap option, so it fetches the SSSOM schema from the
+# pinned URL in the schema's prefixes (network required).
 validate: all
 	uv run linkml-validate -s $(SCHEMA) -C SourceRelease $(RELEASE)/ordo.yaml
 	uv run sssom validate $(RELEASE)/ordo.sssom.tsv

@@ -1,5 +1,5 @@
 # -> Term.synonyms. ORDO's alternative_term carries no scope, so ?scope is left unbound.
-# Treating these as EXACT (as mondo-ingest's property map does today) is hub policy.
+# Treating these as EXACT (as mondo-ingest's property map does today) is Mondo policy, applied in mondo-ingest.
 PREFIX efo: <http://www.ebi.ac.uk/efo/>
 SELECT DISTINCT ?id ?text
 WHERE {

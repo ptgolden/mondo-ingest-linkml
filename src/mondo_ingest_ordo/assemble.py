@@ -34,9 +34,14 @@ def read_rows(path: Path) -> list[dict[str, str]]:
 
 
 class Assembler:
-    def __init__(self, schema_path: Path, prefixes: dict[str, str]):
-        self.sv = SchemaView(str(schema_path))
+    def __init__(self, schema_path: Path, prefixes: dict[str, str], importmap: dict[str, str] | None = None):
+        self.sv = SchemaView(str(schema_path), importmap=importmap)
         self.prefixes = prefixes
+        self.types = self.sv.all_types()
+
+    def is_curie_type(self, range_name: str) -> bool:
+        # Covers uriorcurie itself and types derived from it (e.g. SSSOM's EntityReference).
+        return range_name in self.types and "uriorcurie" in self.sv.type_ancestors(range_name)
 
     def slot(self, class_name: str, slot_name: str):
         if slot_name not in self.sv.class_slots(class_name):
@@ -49,7 +54,7 @@ class Assembler:
             if value not in ("true", "false"):
                 raise AssemblyError(f"{class_name}.{slot_name}: not a boolean: {value!r}")
             return value == "true"
-        if slot.range == "uriorcurie":
+        if self.is_curie_type(slot.range):
             if not CURIE.match(value):
                 raise AssemblyError(f"{class_name}.{slot_name}: malformed CURIE {value!r}")
             prefix = value.split(":", 1)[0]
@@ -109,16 +114,16 @@ class Assembler:
                     raise AssemblyError(f"{path}: row for unknown term {term_id}")
                 self.set_slot(terms[term_id], "Term", slot_name, row, term_id)
 
-        release = {
+        # SSSOM mappings repeat their subject; it must be the term they sit under.
+        for term_id, term in terms.items():
+            for mapping in term.get("mappings", []):
+                if mapping.get("subject_id") != term_id:
+                    raise AssemblyError(f"{term_id}: mapping has subject_id {mapping.get('subject_id')!r}")
+
+        return {
             "metadata": metadata,
             "terms": [canonical(terms[k]) for k in sorted(terms, key=natural_key)],
         }
-        if "mappings" in config:
-            mappings = [self.build_object("Mapping", row) for row in read_rows(root / config["mappings"])]
-            release["mappings"] = sorted(
-                mappings, key=lambda m: (natural_key(m["subject_id"]), m["object_id"], m["predicate_id"])
-            )
-        return release
 
 
 def merge_object(existing: dict, new: dict, where: str):
@@ -175,6 +180,7 @@ def main():
     parser.add_argument("--schema", type=Path, required=True)
     parser.add_argument("--prefixes", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--importmap", type=Path, help="LinkML importmap (JSON) for resolving schema imports")
     parser.add_argument("--query-dir", type=Path, required=True, help="Directory holding the ROBOT query CSVs")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="Extra metadata not available from the source (e.g. generated_at)")
@@ -185,9 +191,10 @@ def main():
     prefixes = yaml.safe_load(args.prefixes.read_text())
     config = yaml.safe_load(args.config.read_text())
     extra = dict(item.split("=", 1) for item in args.set)
+    importmap = json.loads(args.importmap.read_text()) if args.importmap else None
 
     try:
-        release = Assembler(args.schema, prefixes).assemble(config, args.query_dir, extra)
+        release = Assembler(args.schema, prefixes, importmap).assemble(config, args.query_dir, extra)
     except AssemblyError as e:
         sys.exit(f"assembly failed: {e}")
 

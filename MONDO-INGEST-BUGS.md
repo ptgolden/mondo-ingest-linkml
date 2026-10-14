@@ -103,6 +103,7 @@ per-source metadata files probably have the same problem; not checked.
 - **Dead code for current ORDO:**
   - `fix_partof.ru` rewrites `Orphanet_C021`, which doesn't occur in 4.7 or 4.9;
   - `fix_complex_reification_ordo.ru` targets a nested-annotation layout neither uses.
-- **mondo-ingest main downloads ICD10WHO from a personal fork.** `ICD10WHO_RELEASE_BASE`
-  points at `github.com/Reasat/icd10who`, not the monarch-initiative repo. PR #906 said this
-  should move before merge.
+- **Stale ICD10WHO URL.** mondo-ingest main's `ICD10WHO_RELEASE_BASE` points at
+  `github.com/Reasat/icd10who`. That repo was transferred to
+  `monarch-initiative/mondo-ingest-icd10who`, and GitHub redirects the old URL, so it
+  works for now. It should still be updated.

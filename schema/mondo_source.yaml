@@ -14,8 +14,8 @@ description: >-
   synonym scope, generating synonyms from labels); that belongs to mondo-ingest.
   (2) No overloaded fields. OBO's `xref` and `source` are split into a mapping
   predicate, a mapping justification, citations, and a verbatim source qualifier.
-  (3) Mappings are SSSOM mappings (the sssom-schema `mapping` class), inlined on
-  the term they are about, so the SSSOM file is a projection of this data, not a
+  (3) Mappings are inlined on the term they are about, using the sssom-schema
+  package's own slots, so the SSSOM file is a projection of this data, not a
   second source of truth.
 version: 0.1.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
@@ -141,10 +141,8 @@ classes:
         multivalued: true
         slot_uri: oboInOwl:consider
       mappings:
-        description: >-
-          Every mapping the source asserts from this term. Each is a full SSSOM
-          mapping, so subject_id repeats this term's id (the assembler checks it).
-        range: SourceMapping
+        description: Every mapping the source asserts from this term.
+        range: TermMapping
         multivalued: true
         inlined_as_list: true
 
@@ -180,17 +178,63 @@ classes:
         range: uriorcurie
         required: true
 
-  SourceMapping:
-    is_a: mapping
+  TermMapping:
     description: >-
-      An SSSOM mapping asserted by the source, plus the source's own qualifier.
-    attributes:
-      source_mapping_qualifier:
-        description: >-
-          The source's own qualifier on this mapping, verbatim, for audit. Kept
-          because some sources pack more into it than SSSOM has a slot for
-          (ORDO adds an ICD code-relation type next to the precision code).
-          Written to SSSOM files as an extension slot.
+      An SSSOM mapping whose subject is the term it sits under. Uses the
+      sssom-schema package's slots (so ranges, URIs and descriptions are SSSOM's)
+      but not its `mapping` class, because that class's rules require subject_id,
+      which here would only repeat the enclosing term's id. The SSSOM projection
+      fills in subject_id and subject_label, and the projected file is validated
+      as SSSOM.
+    slots:
+      # Every slot of sssom-schema 1.0.0's `mapping` class except subject_id and
+      # subject_label.
+      - subject_category
+      - predicate_id
+      - predicate_label
+      - predicate_modifier
+      - object_id
+      - object_label
+      - object_category
+      - mapping_justification
+      - author_id
+      - author_label
+      - reviewer_id
+      - reviewer_label
+      - creator_id
+      - creator_label
+      - license
+      - subject_type
+      - subject_source
+      - subject_source_version
+      - object_type
+      - object_source
+      - object_source_version
+      - mapping_provider
+      - mapping_source
+      - mapping_cardinality
+      - mapping_tool
+      - mapping_tool_version
+      - mapping_date
+      - publication_date
+      - confidence
+      - curation_rule
+      - curation_rule_text
+      - subject_match_field
+      - object_match_field
+      - match_string
+      - subject_preprocessing
+      - object_preprocessing
+      - similarity_score
+      - similarity_measure
+      - see_also
+      - issue_tracker_item
+      - other
+      - comment
+    slot_usage:
+      # Required in SSSOM by a class rule, which TermMapping does not inherit.
+      object_id:
+        required: true
 
 enums:
   SynonymScope:

@@ -58,14 +58,14 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
    and invents `mondo#ordo_*` subsets. None of that is done here. `part_of` stays a
    relationship, synonyms have no scope, labels are verbatim (including "OBSOLETE: ").
 3. **No overloaded fields.** OBO's `xref` and `source` are split into a mapping predicate
-   (`predicate_id`), a mapping justification, definition `citations`, and the source's own
-   qualifier kept verbatim (`source_mapping_qualifier`).
-4. **Mappings are real SSSOM mappings, inline on their term.** The schema imports the
-   `sssom-schema` package and `Term.mappings` is a subclass of its `mapping` class that adds only
-   `source_mapping_qualifier`. A curator reading a term sees its mappings next to its
-   obsoletion status, and the SSSOM file is a flattening, not a second source of truth.
-   Because SSSOM requires `subject_id`, each inline mapping repeats its term's id; the
-   assembler checks they match.
+   (`predicate_id`), a mapping justification, and definition `citations`.
+4. **Mappings are SSSOM, inline on their term.** The schema imports the `sssom-schema`
+   package, and `Term.mappings` is a `TermMapping`: every slot of SSSOM's `mapping` class
+   except `subject_id` and `subject_label`. The subject is the term the mapping sits under.
+   It reuses SSSOM's slots rather than subclassing `mapping` because that class requires
+   `subject_id` through a rule, and a subclass inherits the rule. A curator reading a term
+   sees its mappings next to its obsoletion status. The SSSOM file is a flattening that adds
+   the subject back, and `sssom validate` checks it as complete SSSOM.
 
    The SSSOM schema has no PURL for its YAML, so the import goes through a `sssom_schema:`
    prefix pinned to the v1.0.0 GitHub URL. The build redirects that prefix to the installed
@@ -88,8 +88,10 @@ ordo.yaml --sssom (generic projection)--> ordo.sssom.tsv
   4.7 already didn't use. Source format drift breaks SPARQL silently.
 - **ORDO's mapping qualifier packs two dimensions into one string:** precision
   (E/NTBT/BTNT/ND) and, for ICD, a code-relation type (Specific code / Attributed code /
-  Index term / Inclusion term). SSSOM has no slot for the second, so it is kept verbatim and
-  declared as an SSSOM extension slot.
+  Index term / Inclusion term). The precision becomes `predicate_id`. SSSOM has no slot for
+  the code relation, so it goes into the mapping's `comment`. mondo-ingest currently keeps
+  neither: its `ordo.sssom.tsv` marks every row `semapv:UnspecifiedMatching` and has no
+  comment.
 - **Data quality issues the pipeline exposed:**
   - Ten ICD-11 xrefs contain non-breaking spaces.
   - 12 classes have both `"X"` and `"X"@en` labels.

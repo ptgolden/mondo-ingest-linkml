@@ -114,12 +114,6 @@ class Assembler:
                     raise AssemblyError(f"{path}: row for unknown term {term_id}")
                 self.set_slot(terms[term_id], "Term", slot_name, row, term_id)
 
-        # SSSOM mappings repeat their subject; it must be the term they sit under.
-        for term_id, term in terms.items():
-            for mapping in term.get("mappings", []):
-                if mapping.get("subject_id") != term_id:
-                    raise AssemblyError(f"{term_id}: mapping has subject_id {mapping.get('subject_id')!r}")
-
         return {
             "metadata": metadata,
             "terms": [canonical(terms[k]) for k in sorted(terms, key=natural_key)],

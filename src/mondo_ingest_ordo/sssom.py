@@ -17,15 +17,7 @@ COLUMNS = [
     "predicate_id",
     "object_id",
     "mapping_justification",
-    "source_mapping_qualifier",
-]
-
-EXTENSIONS = [
-    {
-        "slot_name": "source_mapping_qualifier",
-        "property": "https://w3id.org/monarch-initiative/mondo-source/source_mapping_qualifier",
-        "type_hint": "http://www.w3.org/2001/XMLSchema#string",
-    }
+    "comment",
 ]
 
 
@@ -33,11 +25,8 @@ def project(release: dict, prefixes: dict[str, str], mapping_set_id: str) -> tup
     rows = []
     for term in release["terms"]:
         for mapping in term.get("mappings", []):
-            row = {**mapping, "subject_label": term["label"]}
-            # SSSOM/TSV cells cannot contain newlines.
-            if "source_mapping_qualifier" in row:
-                row["source_mapping_qualifier"] = " ".join(row["source_mapping_qualifier"].split("\n"))
-            rows.append(row)
+            # Inline mappings omit their subject: it is the term they sit under.
+            rows.append({"subject_id": term["id"], "subject_label": term["label"], **mapping})
 
     used = {
         row[col].split(":", 1)[0]
@@ -52,7 +41,6 @@ def project(release: dict, prefixes: dict[str, str], mapping_set_id: str) -> tup
         "license": meta["source_license"],
         "publication_date": meta["generated_at"][:10],
         "mapping_tool": meta["generated_by"],
-        "extension_definitions": EXTENSIONS,
     }
     return header, rows
 

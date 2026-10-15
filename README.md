@@ -58,9 +58,10 @@ ordo.yaml --robot_templates.py (flatten to TSV)--> robot template --> ordo.owl
   - `01-mark-in-scope.ru` marks the classes Mondo takes in.
 
   Each SELECT then extracts one part of the schema from the marked classes, and is named
-  after the slot it fills (`synonyms.rq` fills `Term.synonyms`). Queries return IRIs as
-  IRIs; turning them into CURIEs is the assembler's job. Each query documents which
-  mondo-ingest step it reproduces: `exact_syn_from_label.ru`,
+  after the slot it fills (`synonyms.rq` fills `Term.synonyms`). Queries do no prefix
+  handling: they return IRIs as IRIs, and identifiers ORDO only has as strings (its
+  xrefs) as literals typed `xsd:anyURI`. Each query documents which mondo-ingest step it
+  reproduces: `exact_syn_from_label.ru`,
   `fix-labels-with-brackets.ru`, `ordo-construct-d2g.ru`, `ordo-construct-subsets.ru`,
   `fix_deprecated.ru`, the property map and the relevant-signature query.
 - **Created data says so.** Synonyms copied from labels are typed
@@ -68,10 +69,17 @@ ordo.yaml --robot_templates.py (flatten to TSV)--> robot template --> ordo.owl
   shows what Mondo added rather than ORDO said.
 - **Python only reshapes.**
   - `assemble.py` reads ROBOT's SPARQL XML results, which keep IRIs, literals and
-    datatypes apart; ROBOT has no SPARQL JSON output. It uses the schema (via SchemaView)
-    to decide what is multivalued, a nested object or a CURIE, and `curies` to compress
-    IRIs and check CURIEs. Mapping sort order comes from a `sort_by` annotation in the
-    schema. It knows nothing about ORDO.
+    datatypes apart; ROBOT has no SPARQL JSON output.
+    - Identifiers go through `curies` and `config/prefixes.yaml`, an extended prefix map:
+      IRIs are compressed, and `anyURI` literals are standardised, so ORDO's spellings
+      (`ICD-10`, `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`.
+    - The rest is done by Pydantic models generated from the schema at build time
+      (`gen-pydantic`, into `tmp/`): their field types say what is a list or a nested
+      object, and building them validates types, required slots, CURIE patterns and
+      unknown fields.
+    - Mapping sort order comes from a `sort_by` annotation in the schema.
+
+    It knows nothing about ORDO.
   - `sssom.py` flattens the mappings.
   - `robot_templates.py` flattens `ordo.yaml` into ROBOT template TSVs, taking OWL
     properties from the schema's slot URIs.
@@ -167,8 +175,9 @@ ORDO content mondo-ingest never took in, and which isn't taken in here either:
     loader, 58.8 s with ruamel (YAML 1.2), and 0.23 s as JSON.
   - The gene alias `2E4` is a string under YAML 1.1 (PyYAML) but the float `20000.0` under
     YAML 1.2. The assembler quotes such strings.
-- **The schema validators miss CURIE syntax.** `uriorcurie` becomes an unconstrained string
-  in JSON Schema. The assembler checks CURIE syntax itself.
+- **CURIE syntax needs an explicit pattern.** `uriorcurie` alone is unconstrained in JSON
+  Schema and Pydantic, so the schema puts a pattern on each CURIE slot (one YAML anchor).
+  It has to be on the slots: gen-pydantic ignores patterns declared on a type.
 - **Mappings are SSSOM, inline on their term.**
   - `Term.mappings` is a `TermMapping`: every slot of the `sssom-schema` package's `mapping`
     class except `subject_id` and `subject_label`.

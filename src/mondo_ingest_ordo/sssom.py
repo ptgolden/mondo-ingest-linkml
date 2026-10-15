@@ -14,6 +14,7 @@ import curies
 import typer
 import yaml
 
+from mondo_ingest_ordo.prefixes import load_converter
 from mondo_ingest_ordo.yamlio import load_yaml
 
 COLUMNS = ["subject_id", "subject_label", "predicate_id", "object_id", "mapping_justification", "comment"]
@@ -62,12 +63,12 @@ def write(header: dict, rows: list[dict], path: Path):
 
 def main(
     release: Annotated[Path, typer.Argument()],
-    prefixes: Annotated[Path, typer.Option(help="Prefix map (YAML)")],
+    prefixes: Annotated[Path, typer.Option(help="Extended prefix map (YAML)")],
     metadata: Annotated[Path, typer.Option(help="SSSOM mapping set metadata (YAML)")],
     output: Annotated[Path, typer.Option()],
 ):
     """Project a SourceRelease's mappings to SSSOM TSV."""
-    converter = curies.Converter.from_prefix_map(yaml.safe_load(prefixes.read_text()))
+    converter = load_converter(prefixes)
     header, rows = project(load_yaml(release), converter, yaml.safe_load(metadata.read_text()))
     write(header, rows, output)
 

@@ -18,7 +18,7 @@ description: >-
   (3) Mappings are inlined on the term they are about, using the sssom-schema
   package's own slots, so the SSSOM file is a projection of this data, not a
   second source of truth.
-version: 0.2.0
+version: 0.3.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
 
 prefixes:
@@ -104,6 +104,9 @@ classes:
       id:
         identifier: true
         range: uriorcurie
+        # A CURIE: prefix, colon, non-empty local part without whitespace. Declared
+        # on each slot because gen-pydantic ignores patterns on types.
+        pattern: &curie "^[A-Za-z_][A-Za-z0-9_.-]*:\\S+$"
       label:
         slot_uri: rdfs:label
         required: true
@@ -119,6 +122,7 @@ classes:
           Direct parents, as Mondo reads the source's hierarchy (for ORDO: its
           rdfs:subClassOf parents plus its part_of targets).
         range: uriorcurie
+        pattern: *curie
         multivalued: true
         slot_uri: rdfs:subClassOf
       relationships:
@@ -134,15 +138,18 @@ classes:
       replaced_by:
         description: The single term the source says replaces this one.
         range: uriorcurie
+        pattern: *curie
         slot_uri: IAO:0100001
       consider:
         description: Terms the source suggests instead, without claiming replacement.
         range: uriorcurie
+        pattern: *curie
         multivalued: true
         slot_uri: oboInOwl:consider
       subsets:
         description: Subsets the term belongs to, e.g. mondo#ordo_disorder.
         range: uriorcurie
+        pattern: *curie
         multivalued: true
         slot_uri: oboInOwl:inSubset
       mappings:
@@ -176,15 +183,18 @@ classes:
       synonym_type:
         description: A synonym type CURIE (e.g. ABBREVIATION), if the source states one.
         range: uriorcurie
+        pattern: *curie
         slot_uri: oboInOwl:hasSynonymType
 
   Relationship:
     attributes:
       predicate:
         range: uriorcurie
+        pattern: *curie
         required: true
       target:
         range: uriorcurie
+        pattern: *curie
         required: true
 
   TermMapping:
@@ -244,6 +254,9 @@ classes:
       # Required in SSSOM by a class rule, which TermMapping does not inherit.
       object_id:
         required: true
+        pattern: *curie
+      predicate_id:
+        pattern: *curie
 
 enums:
   SynonymScope:

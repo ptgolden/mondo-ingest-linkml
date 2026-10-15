@@ -11,15 +11,16 @@
 # (Specific code / Attributed code / Index term / Inclusion term), which SSSOM has
 # no slot for. It goes into ?comment, minus the leading "- " and final ".".
 #
-# ORDO's xref targets are "PREFIX:local" strings, so object_id stays a CURIE string.
-# Its prefixes are rewritten to mondo-ingest's (config/prefixes.yaml). Any prefix
-# not in the VALUES table passes through unchanged and is caught by the prefix
-# check at assembly time.
+# ORDO's xref targets are "PREFIX:local" strings, returned typed xsd:anyURI to mark
+# them as identifiers. The assembler standardises them with config/prefixes.yaml,
+# where ORDO's own spellings ("ICD-10", "MeSH", ...) are synonyms of mondo-ingest's
+# prefixes; an unknown prefix fails.
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
 PREFIX obo: <http://purl.obolibrary.org/obo/>
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX semapv: <https://w3id.org/semapv/vocab/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT DISTINCT ?id ?predicate_id ?object_id ?mapping_justification ?comment
 WHERE {
   ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
@@ -45,14 +46,5 @@ WHERE {
   # ORDO 4.9 has a handful of ICD-11 xrefs with stray non-breaking spaces
   # (e.g. "ICD-11: 4A6Y"); mondo-ingest's fix_xref_prefixes.ru meant to strip them.
   BIND(REPLACE(STR(?x), " ", "") AS ?xs)
-  BIND(STRBEFORE(?xs, ":") AS ?ordo_prefix)
-  BIND(STRAFTER(?xs, ":") AS ?local)
-  OPTIONAL {
-    VALUES (?ordo_prefix ?mondo_prefix) {
-      ("ICD-10"    "ICD10")
-      ("ICD-11"    "icd11.foundation")
-      ("MeSH"      "MESH")
-    }
-  }
-  BIND(CONCAT(COALESCE(?mondo_prefix, ?ordo_prefix), ":", ?local) AS ?object_id)
+  BIND(STRDT(?xs, xsd:anyURI) AS ?object_id)
 }

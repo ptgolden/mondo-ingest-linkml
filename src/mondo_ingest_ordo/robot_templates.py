@@ -30,9 +30,9 @@ from typing import Annotated
 
 import curies
 import typer
-import yaml
 from linkml_runtime.utils.schemaview import SchemaView
 
+from mondo_ingest_ordo.prefixes import load_converter
 from mondo_ingest_ordo.yamlio import load_yaml
 
 # Choices the schema does not make.
@@ -196,7 +196,7 @@ MAPPING_ANNOTATION_COLUMNS = ["mapping_justification", "comment"]
 def main(
     release_path: Annotated[Path, typer.Argument(metavar="RELEASE")],
     schema: Annotated[Path, typer.Option()],
-    prefixes: Annotated[Path, typer.Option(help="Prefix map (YAML) the release's CURIEs use")],
+    prefixes: Annotated[Path, typer.Option(help="Extended prefix map (YAML) the release's CURIEs use")],
     out_dir: Annotated[Path, typer.Option()],
     importmap: Annotated[Path | None, typer.Option(help="LinkML importmap (JSON)")] = None,
 ):
@@ -233,7 +233,7 @@ def main(
     )
 
     # Release prefixes plus the vocabulary prefixes the templates use.
-    context = dict(yaml.safe_load(prefixes.read_text()))
+    context = dict(load_converter(prefixes).prefix_map)
     for prefix, ns in sv.namespaces().items():
         context.setdefault(prefix, ns)
     context.setdefault("xsd", "http://www.w3.org/2001/XMLSchema#")

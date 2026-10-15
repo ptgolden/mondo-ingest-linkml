@@ -1,11 +1,12 @@
-# -> SourceRelease.metadata: what ORDO publishes about itself.
+# -> SourceRelease.metadata: what ORDO publishes about itself. The IRI-valued ones
+# are returned as strings: in the schema they're URLs, not identifiers to compress.
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 SELECT ?source_version ?source_version_iri ?source_date ?source_license
 WHERE {
   ?o a owl:Ontology ;
      owl:versionInfo ?source_version .
-  OPTIONAL { ?o owl:versionIRI ?source_version_iri }
+  OPTIONAL { ?o owl:versionIRI ?vi BIND(STR(?vi) AS ?source_version_iri) }
   OPTIONAL { ?o dcterms:modified ?d BIND(STR(?d) AS ?source_date) }
-  OPTIONAL { ?o dcterms:license ?source_license }
+  OPTIONAL { ?o dcterms:license ?l BIND(STR(?l) AS ?source_license) }
 }

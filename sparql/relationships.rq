@@ -9,6 +9,7 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
 PREFIX Orphanet: <http://www.orpha.net/ORDO/Orphanet_>
 PREFIX RO: <http://purl.obolibrary.org/obo/RO_>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT DISTINCT ?id ?predicate ?target
 WHERE {
   VALUES (?ordoRel ?predicate) {
@@ -23,7 +24,7 @@ WHERE {
   ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
       rdfs:label ?diseaseLabel ;
       rdfs:subClassOf+ Orphanet:C001 .
-  # ORDO's gene xrefs are "HGNC:N" strings, already CURIEs.
+  # ORDO's gene xrefs are "HGNC:N" strings, typed xsd:anyURI to mark them as identifiers.
   FILTER(STRSTARTS(STR(?x), "HGNC:"))
-  BIND(STR(?x) AS ?target)
+  BIND(STRDT(STR(?x), xsd:anyURI) AS ?target)
 }

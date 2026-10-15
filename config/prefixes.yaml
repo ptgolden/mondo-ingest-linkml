@@ -1,32 +1,31 @@
-# Canonical prefix map: every CURIE in a release must use one of these.
+# Canonical prefix map: every identifier in a release must use one of these. A curies
+# extended prefix map: prefix_synonyms are other spellings a source uses, which the
+# assembler rewrites to the canonical prefix.
 #
 # EXPERIMENT: like the schema, this would live once in mondo-ingest, not per source
 # repo. For now it follows mondo-ingest's own conventions for ORDO: the bases in its
 # src/ontology/metadata/ordo.metadata.sssom.yml, plus MONDO and icd11.foundation as
 # they appear in its released mappings/ordo.sssom.tsv (v2026-01-24).
-#
-# Orphanet's own prefix spellings ("ICD-10", "MeSH", ...) are rewritten to these
-# in sparql/mappings.rq.
 
 # Vocabulary
-oboInOwl: http://www.geneontology.org/formats/oboInOwl#
-skos: http://www.w3.org/2004/02/skos/core#
-semapv: https://w3id.org/semapv/vocab/
-mondo: http://purl.obolibrary.org/obo/mondo#
-RO: http://purl.obolibrary.org/obo/RO_
-orcid: https://orcid.org/
+- {prefix: oboInOwl, uri_prefix: "http://www.geneontology.org/formats/oboInOwl#"}
+- {prefix: skos, uri_prefix: "http://www.w3.org/2004/02/skos/core#"}
+- {prefix: semapv, uri_prefix: "https://w3id.org/semapv/vocab/"}
+- {prefix: mondo, uri_prefix: "http://purl.obolibrary.org/obo/mondo#"}
+- {prefix: RO, uri_prefix: "http://purl.obolibrary.org/obo/RO_"}
+- {prefix: orcid, uri_prefix: "https://orcid.org/"}
 
 # Terms and mapping targets
-Orphanet: http://www.orpha.net/ORDO/Orphanet_
-MONDO: http://purl.obolibrary.org/obo/MONDO_
-OMIM: https://omim.org/entry/
-ICD10: http://apps.who.int/classifications/icd10/browse/2010/en#/
+- {prefix: Orphanet, uri_prefix: "http://www.orpha.net/ORDO/Orphanet_"}
+- {prefix: MONDO, uri_prefix: "http://purl.obolibrary.org/obo/MONDO_"}
+- {prefix: OMIM, uri_prefix: "https://omim.org/entry/"}
+- {prefix: ICD10, uri_prefix: "http://apps.who.int/classifications/icd10/browse/2010/en#/", prefix_synonyms: [ICD-10]}
 # NOTE: ORDO's ICD-11 codes are MMS codes (e.g. LD28.01), not Foundation IDs, but
 # mondo-ingest files them under icd11.foundation. Kept for compatibility.
-icd11.foundation: http://id.who.int/icd/entity/
-MESH: http://identifiers.org/mesh/
-UMLS: http://linkedlifedata.com/resource/umls/id/
-MedDRA: https://identifiers.org/meddra/
+- {prefix: icd11.foundation, uri_prefix: "http://id.who.int/icd/entity/", prefix_synonyms: [ICD-11]}
+- {prefix: MESH, uri_prefix: "http://identifiers.org/mesh/", prefix_synonyms: [MeSH]}
+- {prefix: UMLS, uri_prefix: "http://linkedlifedata.com/resource/umls/id/"}
+- {prefix: MedDRA, uri_prefix: "https://identifiers.org/meddra/"}
 
 # Gene-disease relation targets
-HGNC: http://identifiers.org/hgnc/
+- {prefix: HGNC, uri_prefix: "http://identifiers.org/hgnc/"}

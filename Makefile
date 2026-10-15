@@ -65,13 +65,17 @@ $(TMP)/importmap.json: pyproject.toml uv.lock
 	uv run python -c 'import json, pathlib, sssom_schema; \
 		print(json.dumps({"sssom_schema:": str(pathlib.Path(sssom_schema.__file__).parent / "schema") + "/"}))' > $@
 
-$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(TMP)/importmap.json $(SCHEMA) config/prefixes.yaml $(PYTHON_SRC)
+# Pydantic models generated from the schema; a build artifact, not committed.
+$(TMP)/datamodel.py: $(SCHEMA) $(TMP)/importmap.json
+	uv run gen-pydantic --importmap $(TMP)/importmap.json $(SCHEMA) > $@.part
+	mv $@.part $@
+
+$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(TMP)/datamodel.py config/prefixes.yaml $(PYTHON_SRC)
 	mkdir -p $(RELEASE)
 	uv run python -m mondo_ingest_ordo.assemble \
 		--results $(TMP)/query \
-		--schema $(SCHEMA) \
+		--models $(TMP)/datamodel.py \
 		--prefixes config/prefixes.yaml \
-		--importmap $(TMP)/importmap.json \
 		--set source_id=ordo \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
 		--set schema_version=$(SCHEMA_VERSION) \

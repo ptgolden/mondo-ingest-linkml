@@ -7,8 +7,8 @@
 #   make validate   validate ordo.yaml against the schema and ordo.sssom.tsv as SSSOM
 #   make refresh    re-download ORDO, then build
 #
-# ROBOT does all RDF work. Python only reshapes tables: ROBOT query results into
-# ordo.yaml, and ordo.yaml into SSSOM and ROBOT templates.
+# ROBOT does all RDF work. Python only reshapes: SPARQL results into ordo.yaml, and
+# ordo.yaml into SSSOM and ROBOT templates.
 
 # Stable URL for the current English ORDO (the same one mondo-ingest uses). The
 # exact version is recorded from the file's own owl:versionIRI.
@@ -50,11 +50,12 @@ refresh:
 
 # ── ordo.yaml ─────────────────────────────────────────────────────────────────
 # One ROBOT invocation loads ORDO once, applies the updates (part_of as parents,
-# scope marking), then runs every SELECT.
+# scope marking), then runs every SELECT. Results are SPARQL XML, which keeps IRIs,
+# literals and datatypes apart (ROBOT has no SPARQL JSON output).
 $(TMP)/query/.done: $(TMP)/ordo.owl $(UPDATES) $(QUERIES)
-	mkdir -p $(TMP)/query
+	rm -rf $(TMP)/query && mkdir -p $(TMP)/query
 	robot query -i $< $(foreach u,$(UPDATES),--update $(u)) \
-		query --format csv $(foreach q,$(QUERIES),--query $(q) $(TMP)/query/$(basename $(notdir $(q))).csv)
+		query --format sxml $(foreach q,$(QUERIES),--query $(q) $(TMP)/query/$(basename $(notdir $(q))).srx)
 	touch $@
 
 # Resolve the schema's sssom_schema: import to the installed sssom-schema package
@@ -64,13 +65,12 @@ $(TMP)/importmap.json: pyproject.toml uv.lock
 	uv run python -c 'import json, pathlib, sssom_schema; \
 		print(json.dumps({"sssom_schema:": str(pathlib.Path(sssom_schema.__file__).parent / "schema") + "/"}))' > $@
 
-$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(TMP)/importmap.json $(SCHEMA) config/assembly.yaml config/prefixes.yaml $(PYTHON_SRC)
+$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(TMP)/importmap.json $(SCHEMA) config/prefixes.yaml $(PYTHON_SRC)
 	mkdir -p $(RELEASE)
 	uv run python -m mondo_ingest_ordo.assemble \
+		--results $(TMP)/query \
 		--schema $(SCHEMA) \
 		--prefixes config/prefixes.yaml \
-		--config config/assembly.yaml \
-		--query-dir $(TMP)/query \
 		--importmap $(TMP)/importmap.json \
 		--set source_id=ordo \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \

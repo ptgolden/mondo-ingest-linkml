@@ -1,214 +1,177 @@
-"""Assemble ROBOT query results (CSV) into a SourceRelease YAML document.
+"""Assemble a SourceRelease YAML from SPARQL query results.
 
-Nothing in here knows about ORDO or about RDF. ROBOT runs the source-specific
-SPARQL; each query's columns are named after schema slots. This module only
-reshapes those rows, using the schema to decide what is multivalued, inlined,
-boolean or a CURIE, and fails on anything it cannot place unambiguously.
+Each result file fills one part of the release, by its name:
+
+  metadata.srx   the release metadata (one row)
+  terms.srx      one Term per row, ?id plus single-valued slots
+  <slot>.srx     Term.<slot>, one value per row, keyed by ?id
+
+The schema decides everything else. If a slot's range is a class, each row is one
+object, built from the row's other columns; otherwise the row's <slot> column is
+the value. Multivalued slots collect each distinct value; single-valued slots must
+get exactly one. IRIs in CURIE-typed slots are compressed with the prefix map;
+CURIE strings are checked against it. Lists are sorted by the fields named in the
+slot's `sort_by` annotation, then by full content, so output is stable.
 """
 
-import argparse
-import csv
 import json
-import re
-import sys
+import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Annotated, Any
 
+import curies
+import typer
 import yaml
 from linkml_runtime.utils.schemaview import SchemaView
 
-csv.field_size_limit(sys.maxsize)
+from mondo_ingest_ordo.yamlio import dump_yaml
+
+RESULTS = "{http://www.w3.org/2005/sparql-results#}"
+XSD = "http://www.w3.org/2001/XMLSchema#"
 
 
-# Prefix, colon, and a local part with no whitespace or control characters.
-CURIE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*:[^\s\x00-\x1f\x7f-\x9f]+$")
+class IRI(str):
+    """A SPARQL result value that was an IRI, not a literal."""
 
 
 class AssemblyError(Exception):
     pass
 
 
-def read_rows(path: Path) -> list[dict[str, str]]:
-    with open(path, newline="") as f:
-        # Unbound SPARQL variables come back as empty strings.
-        return [{k: v for k, v in row.items() if v != ""} for row in csv.DictReader(f)]
+def read_results(path: Path) -> Iterator[dict[str, Any]]:
+    """Rows of a SPARQL XML results file, with IRIs, booleans and integers typed."""
+    for _, el in ET.iterparse(path):
+        if el.tag != RESULTS + "result":
+            continue
+        row = {}
+        for binding in el.iter(RESULTS + "binding"):
+            name, value = binding.get("name"), binding[0]
+            kind = value.tag.removeprefix(RESULTS)
+            if kind == "uri":
+                row[name] = IRI(value.text)
+            elif kind == "literal":
+                datatype, text = value.get("datatype"), value.text or ""
+                if datatype == XSD + "boolean":
+                    row[name] = text == "true"
+                elif datatype == XSD + "integer":
+                    row[name] = int(text)
+                else:
+                    row[name] = text
+            else:
+                raise AssemblyError(f"{path.name}: unexpected {kind} for ?{name}")
+        el.clear()
+        yield row
 
 
 class Assembler:
-    def __init__(self, schema_path: Path, prefixes: dict[str, str], importmap: dict[str, str] | None = None):
-        self.sv = SchemaView(str(schema_path), importmap=importmap)
-        self.prefixes = prefixes
-        self.types = self.sv.all_types()
-
-    def is_curie_type(self, range_name: str) -> bool:
-        # Covers uriorcurie itself and types derived from it (e.g. SSSOM's EntityReference).
-        return range_name in self.types and "uriorcurie" in self.sv.type_ancestors(range_name)
+    def __init__(self, sv: SchemaView, converter: curies.Converter):
+        self.sv = sv
+        self.converter = converter
+        self.classes = set(sv.all_classes())
+        self.types = sv.all_types()
 
     def slot(self, class_name: str, slot_name: str):
         if slot_name not in self.sv.class_slots(class_name):
             raise AssemblyError(f"{class_name} has no slot {slot_name!r}")
         return self.sv.induced_slot(slot_name, class_name)
 
-    def coerce(self, class_name: str, slot_name: str, value: str):
+    def is_curie_slot(self, slot) -> bool:
+        return slot.range in self.types and "uriorcurie" in self.sv.type_ancestors(slot.range)
+
+    def value(self, class_name: str, slot_name: str, value: Any) -> Any:
         slot = self.slot(class_name, slot_name)
-        if slot.range == "boolean":
-            if value not in ("true", "false"):
-                raise AssemblyError(f"{class_name}.{slot_name}: not a boolean: {value!r}")
-            return value == "true"
-        if self.is_curie_type(slot.range):
-            if not CURIE.match(value):
-                raise AssemblyError(f"{class_name}.{slot_name}: malformed CURIE {value!r}")
-            prefix = value.split(":", 1)[0]
-            if prefix not in self.prefixes:
-                raise AssemblyError(f"{class_name}.{slot_name}: undeclared prefix in {value!r}")
-        return value
+        if self.is_curie_slot(slot):
+            if isinstance(value, IRI):
+                try:
+                    return self.converter.compress_strict(value)
+                except curies.CompressionError:
+                    raise AssemblyError(f"{class_name}.{slot_name}: no prefix for {value}") from None
+            # curies accepts an empty or whitespace-containing local part; ORDO has both.
+            _, _, local = str(value).partition(":")
+            if not self.converter.is_curie(value) or not local or any(c.isspace() for c in local):
+                raise AssemblyError(f"{class_name}.{slot_name}: not a CURIE in the prefix map: {value!r}")
+        return str(value) if isinstance(value, IRI) else value
 
-    def build_object(self, class_name: str, row: dict[str, str]) -> dict:
-        obj = {}
-        for name, value in row.items():
-            value = self.coerce(class_name, name, value)
-            obj[name] = [value] if self.slot(class_name, name).multivalued else value
-        return obj
-
-    def set_slot(self, obj: dict, class_name: str, slot_name: str, row: dict[str, str], where: str):
-        """Add one row's worth of `slot_name` to `obj`, merging with what is already there."""
-        slot = self.slot(class_name, slot_name)
-        if slot.range in self.sv.all_classes():
-            value = self.build_object(slot.range, row)
-        else:
-            if list(row) != [slot_name]:
-                raise AssemblyError(f"{where}: expected one column {slot_name!r}, got {list(row)}")
-            value = self.coerce(class_name, slot_name, row[slot_name])
-
-        if slot.multivalued:
-            values = obj.setdefault(slot_name, [])
+    def add(self, target: dict, class_name: str, slot_name: str, value: Any, where: str):
+        if self.slot(class_name, slot_name).multivalued:
+            values = target.setdefault(slot_name, [])
             if value not in values:
                 values.append(value)
-        elif slot_name not in obj:
-            obj[slot_name] = value
-        elif isinstance(value, dict):
-            merge_object(obj[slot_name], value, f"{where}.{slot_name}")
-        elif obj[slot_name] != value:
-            raise AssemblyError(
-                f"{where}.{slot_name}: single-valued but got {obj[slot_name]!r} and {value!r}"
-            )
+        elif target.setdefault(slot_name, value) != value:
+            raise AssemblyError(f"{where}.{slot_name}: single-valued but got {target[slot_name]!r} and {value!r}")
 
-    def assemble(self, config: dict, root: Path, metadata_extra: dict[str, str]) -> dict:
-        metadata_rows = read_rows(root / config["metadata"])
+    def assemble(self, results: Path, extra_metadata: dict[str, str]) -> dict:
+        metadata_rows = list(read_results(results / "metadata.srx"))
         if len(metadata_rows) != 1:
-            raise AssemblyError(f"metadata query returned {len(metadata_rows)} rows, expected 1")
+            raise AssemblyError(f"metadata.srx has {len(metadata_rows)} rows, expected 1")
         metadata = {}
-        for name, value in {**metadata_rows[0], **metadata_extra}.items():
-            self.set_slot(metadata, "ReleaseMetadata", name, {name: value}, "metadata")
+        for k, v in {**metadata_rows[0], **extra_metadata}.items():
+            self.add(metadata, "ReleaseMetadata", k, self.value("ReleaseMetadata", k, v), "metadata")
 
         terms: dict[str, dict] = {}
-        for row in read_rows(root / config["terms"]):
-            term_id = row.pop("id")
-            term = terms.setdefault(term_id, {"id": self.coerce("Term", "id", term_id)})
-            for name, value in row.items():
-                self.set_slot(term, "Term", name, {name: value}, term_id)
+        for row in read_results(results / "terms.srx"):
+            tid = self.value("Term", "id", row.pop("id"))
+            term = terms.setdefault(tid, {"id": tid})
+            for k, v in row.items():
+                self.add(term, "Term", k, self.value("Term", k, v), tid)
 
-        for slot_name, path in config.get("term_slots", {}).items():
-            for row in read_rows(root / path):
-                term_id = row.pop("id")
-                if term_id not in terms:
-                    raise AssemblyError(f"{path}: row for unknown term {term_id}")
-                self.set_slot(terms[term_id], "Term", slot_name, row, term_id)
+        for path in sorted(results.glob("*.srx")):
+            if path.stem in ("metadata", "terms"):
+                continue
+            slot_name = path.stem
+            slot = self.slot("Term", slot_name)
+            for row in read_results(path):
+                tid = self.value("Term", "id", row.pop("id"))
+                if tid not in terms:
+                    raise AssemblyError(f"{path.name}: row for unknown term {tid}")
+                if slot.range in self.classes:
+                    value = {k: self.value(slot.range, k, v) for k, v in row.items()}
+                else:
+                    value = self.value("Term", slot_name, row[slot_name])
+                self.add(terms[tid], "Term", slot_name, value, tid)
 
-        return {
-            "metadata": metadata,
-            "terms": [canonical(terms[k], config.get("sort_by", {})) for k in sorted(terms, key=natural_key)],
-        }
+        return {"metadata": metadata, "terms": [self.sorted(terms[k]) for k in sorted(terms, key=id_key)]}
+
+    def sorted(self, term: dict) -> dict:
+        """Keys in schema slot order; lists sorted so output is stable across runs."""
+        out = {}
+        for k in sorted(term, key=self.sv.class_slots("Term").index):
+            v = term[k]
+            if isinstance(v, list):
+                annotation = getattr(self.slot("Term", k).annotations, "sort_by", None)
+                fields = annotation.value.split() if annotation else []
+                v = sorted(v, key=lambda x: ([str(x.get(f, "")) for f in fields] if isinstance(x, dict) else [],
+                                             json.dumps(x, sort_keys=True)))
+            out[k] = v
+        return out
 
 
-def merge_object(existing: dict, new: dict, where: str):
-    for key, value in new.items():
-        if key not in existing:
-            existing[key] = value
-        elif isinstance(value, list):
-            existing[key].extend(v for v in value if v not in existing[key])
-        elif existing[key] != value:
-            raise AssemblyError(f"{where}.{key}: conflicting values {existing[key]!r} and {value!r}")
-
-
-def natural_key(curie: str):
+def id_key(curie: str):
     prefix, _, local = curie.partition(":")
     return (prefix, int(local)) if local.isdigit() else (prefix, float("inf"), local)
 
 
-def canonical(obj, sort_by: dict[str, list[str]], slot: str | None = None):
-    """Sort list values so output is stable across runs and diffs stay local.
-
-    Lists of objects are sorted by the fields named for their slot in `sort_by`,
-    then by their full content as a tie-breaker.
-    """
-    if isinstance(obj, dict):
-        return {k: canonical(v, sort_by, k) for k, v in obj.items()}
-    if isinstance(obj, list):
-        items = [canonical(v, sort_by) for v in obj]
-        fields = sort_by.get(slot, [])
-
-        def key(v):
-            leading = [str(v.get(f, "")) for f in fields] if isinstance(v, dict) else []
-            return (leading, json.dumps(v, sort_keys=True))
-
-        return sorted(items, key=key)
-    return obj
-
-
-# PyYAML emits YAML 1.1, where e.g. "2E4" is a string and is written unquoted.
-# YAML 1.2 parsers (ruamel, most non-Python tools) read that as the float 20000.0.
-# Quote any string a YAML 1.2 core-schema parser would resolve to a non-string.
-YAML_12_NON_STRING = re.compile(
-    r"""^(?:~|null|Null|NULL|true|True|TRUE|false|False|FALSE
-    |[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+
-    |[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?
-    |[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$""",
-    re.VERBOSE,
-)
-
-
-class ReleaseDumper(getattr(yaml, "CSafeDumper", yaml.SafeDumper)):
-    pass
-
-
-def represent_str(dumper, value: str):
-    style = "'" if YAML_12_NON_STRING.match(value) else None
-    return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
-
-
-ReleaseDumper.add_representer(str, represent_str)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Assemble ROBOT query results into a SourceRelease YAML.")
-    parser.add_argument("--schema", type=Path, required=True)
-    parser.add_argument("--prefixes", type=Path, required=True)
-    parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--importmap", type=Path, help="LinkML importmap (JSON) for resolving schema imports")
-    parser.add_argument("--query-dir", type=Path, required=True, help="Directory holding the ROBOT query CSVs")
-    parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
-                        help="Extra metadata not available from the source (e.g. generated_at)")
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--metadata-output", type=Path)
-    args = parser.parse_args()
-
-    prefixes = yaml.safe_load(args.prefixes.read_text())
-    config = yaml.safe_load(args.config.read_text())
-    extra = dict(item.split("=", 1) for item in args.set)
-    importmap = json.loads(args.importmap.read_text()) if args.importmap else None
-
+def main(
+    results: Annotated[Path, typer.Option(help="Directory of SPARQL XML result files")],
+    schema: Annotated[Path, typer.Option()],
+    prefixes: Annotated[Path, typer.Option(help="Prefix map (YAML) every CURIE must use")],
+    output: Annotated[Path, typer.Option()],
+    metadata_output: Annotated[Path | None, typer.Option()] = None,
+    importmap: Annotated[Path | None, typer.Option(help="LinkML importmap (JSON)")] = None,
+    set_: Annotated[list[str], typer.Option("--set", help="Extra metadata, KEY=VALUE")] = [],
+):
+    """Assemble a SourceRelease YAML from SPARQL query results."""
+    sv = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
+    converter = curies.Converter.from_prefix_map(yaml.safe_load(prefixes.read_text()))
     try:
-        release = Assembler(args.schema, prefixes, importmap).assemble(config, args.query_dir, extra)
+        release = Assembler(sv, converter).assemble(results, dict(s.split("=", 1) for s in set_))
     except AssemblyError as e:
-        sys.exit(f"assembly failed: {e}")
-
-    dumper = ReleaseDumper
-    with open(args.output, "w") as f:
-        yaml.dump(release, f, Dumper=dumper, sort_keys=False, allow_unicode=True, width=1000)
-    if args.metadata_output:
-        with open(args.metadata_output, "w") as f:
-            yaml.dump(release["metadata"], f, Dumper=dumper, sort_keys=False, allow_unicode=True)
+        raise SystemExit(f"assembly failed: {e}")
+    dump_yaml(release, output)
+    if metadata_output:
+        dump_yaml(release["metadata"], metadata_output)
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)

@@ -150,6 +150,9 @@ classes:
         range: TermMapping
         multivalued: true
         inlined_as_list: true
+        annotations:
+          # Output order, so a changed mapping shows up as a local edit in a diff.
+          sort_by: object_id predicate_id
 
   Definition:
     attributes:

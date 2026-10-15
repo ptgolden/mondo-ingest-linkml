@@ -9,24 +9,24 @@
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX efo: <http://www.ebi.ac.uk/efo/>
+PREFIX mondo: <http://purl.obolibrary.org/obo/mondo#>
 SELECT DISTINCT ?id ?text ?scope ?synonym_type
 WHERE {
-  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in .
+  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in .
   {
-    ?c efo:alternative_term ?s .
+    ?id efo:alternative_term ?s .
     BIND(STR(?s) AS ?text)
   } UNION {
-    ?c rdfs:label ?l .
-    FILTER NOT EXISTS { ?c owl:deprecated ?d }
-    FILTER NOT EXISTS { ?c rdfs:subClassOf* <http://www.orpha.net/ORDO/Orphanet_C041> }
+    ?id rdfs:label ?l .
+    FILTER NOT EXISTS { ?id owl:deprecated ?d }
+    FILTER NOT EXISTS { ?id rdfs:subClassOf* <http://www.orpha.net/ORDO/Orphanet_C041> }
     BIND(STR(?l) AS ?text)
-    BIND("mondo:GENERATED_FROM_LABEL" AS ?synonym_type)
+    BIND(mondo:GENERATED_FROM_LABEL AS ?synonym_type)
   } UNION {
-    { ?c rdfs:label ?v } UNION { ?c efo:alternative_term ?v }
+    { ?id rdfs:label ?v } UNION { ?id efo:alternative_term ?v }
     FILTER(REGEX(STR(?v), "[\\])]$"))
     BIND(REPLACE(LCASE(STR(?v)), " [\\[(].*[)\\]]$", "") AS ?text)
-    BIND("mondo:GENERATED" AS ?synonym_type)
+    BIND(mondo:GENERATED AS ?synonym_type)
   }
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
   BIND("EXACT" AS ?scope)
 }

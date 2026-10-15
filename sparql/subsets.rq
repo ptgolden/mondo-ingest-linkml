@@ -9,8 +9,7 @@ SELECT DISTINCT ?id ?subsets
 WHERE {
   ?category rdfs:subClassOf <http://www.orpha.net/ORDO/Orphanet_C001> ;
             rdfs:label ?categoryLabel .
-  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
-     rdfs:subClassOf+ ?category .
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
-  BIND(CONCAT("mondo:ordo_", REPLACE(LCASE(STR(?categoryLabel)), " ", "_")) AS ?subsets)
+  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+      rdfs:subClassOf+ ?category .
+  BIND(IRI(CONCAT("http://purl.obolibrary.org/obo/mondo#ordo_", REPLACE(LCASE(STR(?categoryLabel)), " ", "_"))) AS ?subsets)
 }

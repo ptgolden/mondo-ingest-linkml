@@ -2,8 +2,7 @@
 PREFIX efo: <http://www.ebi.ac.uk/efo/>
 SELECT DISTINCT ?id ?text
 WHERE {
-  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
-     efo:definition ?d .
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+      efo:definition ?d .
   BIND(STR(?d) AS ?text)
 }

@@ -45,8 +45,8 @@ The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOA
 ## How it works
 
 ```
-ORDO OWL --robot query: 2 updates, then 11 SELECTs (one load)--> CSVs
-CSVs --assemble.py (generic, schema-driven)--> ordo.yaml
+ORDO OWL --robot query: 2 updates, then 11 SELECTs (one load)--> SPARQL XML results
+SPARQL XML results --assemble.py (generic, schema-driven)--> ordo.yaml
 ordo.yaml --sssom.py--> ordo.sssom.tsv
 ordo.yaml --robot_templates.py (flatten to TSV)--> robot template --> ordo.owl
 ```
@@ -57,21 +57,27 @@ ordo.yaml --robot_templates.py (flatten to TSV)--> robot template --> ordo.owl
     `part_of` as hierarchy;
   - `01-mark-in-scope.ru` marks the classes Mondo takes in.
 
-  Each SELECT then extracts one part of the schema from the marked classes. Each query
-  documents which mondo-ingest step it reproduces: `exact_syn_from_label.ru`,
+  Each SELECT then extracts one part of the schema from the marked classes, and is named
+  after the slot it fills (`synonyms.rq` fills `Term.synonyms`). Queries return IRIs as
+  IRIs; turning them into CURIEs is the assembler's job. Each query documents which
+  mondo-ingest step it reproduces: `exact_syn_from_label.ru`,
   `fix-labels-with-brackets.ru`, `ordo-construct-d2g.ru`, `ordo-construct-subsets.ru`,
   `fix_deprecated.ru`, the property map and the relevant-signature query.
 - **Created data says so.** Synonyms copied from labels are typed
   `mondo:GENERATED_FROM_LABEL`, and bracket-stripped ones `mondo:GENERATED`, so the YAML
   shows what Mondo added rather than ORDO said.
-- **Python only reshapes tables.**
-  - `assemble.py` uses the schema (via SchemaView) to decide what is multivalued, inlined,
-    boolean or a CURIE. It knows nothing about ORDO or RDF.
+- **Python only reshapes.**
+  - `assemble.py` reads ROBOT's SPARQL XML results, which keep IRIs, literals and
+    datatypes apart; ROBOT has no SPARQL JSON output. It uses the schema (via SchemaView)
+    to decide what is multivalued, a nested object or a CURIE, and `curies` to compress
+    IRIs and check CURIEs. Mapping sort order comes from a `sort_by` annotation in the
+    schema. It knows nothing about ORDO.
   - `sssom.py` flattens the mappings.
   - `robot_templates.py` flattens `ordo.yaml` into ROBOT template TSVs, taking OWL
     properties from the schema's slot URIs.
+  - `yamlio.py` writes YAML that reads back the same under YAML 1.1 and 1.2.
 
-  None of the three is ORDO-specific.
+  None of them is ORDO-specific, and all three CLIs use Typer.
 - **Fail hard.** Assembly stops on two values for a single-valued slot, a row for a term
   that doesn't exist, a malformed CURIE, or a prefix missing from `config/prefixes.yaml`.
 
@@ -153,7 +159,7 @@ ORDO content mondo-ingest never took in, and which isn't taken in here either:
 ### About the approach
 
 - **Timings (ORDO 4.9):**
-  - `make all` takes about 2.5 minutes with ORDO already downloaded;
+  - `make all` takes about 1.5 minutes with ORDO already downloaded;
   - `make bundle` adds about 1.5 minutes;
   - `make validate` takes about 1.5 minutes, almost all YAML parsing.
 - **YAML is a cost and a correctness hazard, and stays because curators read it.**

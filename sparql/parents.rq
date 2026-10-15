@@ -3,9 +3,7 @@
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 SELECT DISTINCT ?id ?parents
 WHERE {
-  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
-     rdfs:subClassOf ?p .
-  FILTER(isIRI(?p) && STRSTARTS(STR(?p), "http://www.orpha.net/ORDO/Orphanet_"))
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?p), "http://www.orpha.net/ORDO/Orphanet_")) AS ?parents)
+  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+      rdfs:subClassOf ?parents .
+  FILTER(isIRI(?parents) && STRSTARTS(STR(?parents), "http://www.orpha.net/ORDO/Orphanet_"))
 }

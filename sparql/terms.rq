@@ -7,12 +7,10 @@ PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 SELECT DISTINCT ?id ?label ?deprecated
 WHERE {
-  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
-     rdfs:label ?l .
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
+  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+      rdfs:label ?l .
   BIND(STR(?l) AS ?label)
-  OPTIONAL { ?c owl:deprecated ?d }
-  BIND(IF(BOUND(?d), STR(?d),
-          IF(EXISTS { ?c rdfs:subClassOf* <http://www.orpha.net/ORDO/Orphanet_C041> }, "true", ?unbound))
+  OPTIONAL { ?id owl:deprecated ?d }
+  BIND(IF(BOUND(?d) || EXISTS { ?id rdfs:subClassOf* <http://www.orpha.net/ORDO/Orphanet_C041> }, true, ?unbound)
        AS ?deprecated)
 }

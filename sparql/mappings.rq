@@ -11,33 +11,35 @@
 # (Specific code / Attributed code / Index term / Inclusion term), which SSSOM has
 # no slot for. It goes into ?comment, minus the leading "- " and final ".".
 #
-# Target prefixes are rewritten to mondo-ingest's (config/prefixes.yaml). Any
-# prefix not in the VALUES table passes through unchanged and is caught by the
-# prefix check at assembly time.
+# ORDO's xref targets are "PREFIX:local" strings, so object_id stays a CURIE string.
+# Its prefixes are rewritten to mondo-ingest's (config/prefixes.yaml). Any prefix
+# not in the VALUES table passes through unchanged and is caught by the prefix
+# check at assembly time.
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
 PREFIX obo: <http://purl.obolibrary.org/obo/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX semapv: <https://w3id.org/semapv/vocab/>
 SELECT DISTINCT ?id ?predicate_id ?object_id ?mapping_justification ?comment
 WHERE {
-  ?c <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
-     oio:hasDbXref ?x .
-  ?ax owl:annotatedSource ?c ;
+  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+      oio:hasDbXref ?x .
+  ?ax owl:annotatedSource ?id ;
       owl:annotatedProperty oio:hasDbXref ;
       owl:annotatedTarget ?x ;
       obo:ECO_0000218 ?q .
-  BIND(CONCAT("Orphanet:", STRAFTER(STR(?c), "http://www.orpha.net/ORDO/Orphanet_")) AS ?id)
 
   # Strip the leading "- " that multi-line qualifiers use, then read the code.
   BIND(REPLACE(STR(?q), "^- ", "") AS ?qs)
   BIND(
-    IF(STRSTARTS(?qs, "E "), "skos:exactMatch",
-    IF(STRSTARTS(?qs, "NTBT "), "skos:broadMatch",
-    IF(STRSTARTS(?qs, "BTNT "), "skos:narrowMatch",
+    IF(STRSTARTS(?qs, "E "), skos:exactMatch,
+    IF(STRSTARTS(?qs, "NTBT "), skos:broadMatch,
+    IF(STRSTARTS(?qs, "BTNT "), skos:narrowMatch,
     IF(STRSTARTS(?qs, "ND "), ?unbound,
        "UNRECOGNISED_QUALIFIER"))))
     AS ?predicate_id)
   FILTER(BOUND(?predicate_id))
-  BIND("semapv:ManualMappingCuration" AS ?mapping_justification)
+  BIND(semapv:ManualMappingCuration AS ?mapping_justification)
   BIND(IF(CONTAINS(STR(?q), "\n- "), REPLACE(STRAFTER(STR(?q), "\n- "), "\\.$", ""), ?unbound) AS ?comment)
 
   # ORDO 4.9 has a handful of ICD-11 xrefs with stray non-breaking spaces

@@ -23,14 +23,17 @@ OWL properties come from the schema where it says (slot_uri, enum meanings, SSSO
 slot URIs); the few choices it doesn't make are named below.
 """
 
-import argparse
 import csv
 import json
-import sys
 from pathlib import Path
+from typing import Annotated
 
+import curies
+import typer
 import yaml
 from linkml_runtime.utils.schemaview import SchemaView
+
+from mondo_ingest_ordo.yamlio import load_yaml
 
 # Choices the schema does not make.
 DEFINITION = "IAO:0000115"
@@ -42,16 +45,14 @@ UNSCOPED_SYNONYM = "skos:altLabel"
 SPLIT = "|"
 
 
-def curie(sv: SchemaView, uri: str) -> str:
-    """Contract an expanded slot/enum URI with the schema's own prefixes."""
-    for prefix, ns in sorted(sv.namespaces().items(), key=lambda kv: -len(kv[1])):
-        if uri.startswith(ns):
-            return f"{prefix}:{uri[len(ns):]}"
-    return uri
+def schema_converter(sv: SchemaView) -> curies.Converter:
+    return curies.Converter.from_prefix_map(dict(sv.namespaces().items()))
 
 
 def slot_uri(sv: SchemaView, class_name: str, slot_name: str) -> str:
-    return curie(sv, sv.get_uri(sv.induced_slot(slot_name, class_name), expand=True))
+    """The slot's URI as a CURIE in the schema's own prefixes, for a template string."""
+    uri = sv.get_uri(sv.induced_slot(slot_name, class_name), expand=True)
+    return schema_converter(sv).compress(uri, passthrough=True)
 
 
 class Table:
@@ -100,10 +101,7 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
     ])
     tables["terms"] = terms
 
-    scope_property = {
-        name: curie(sv, pv.meaning)
-        for name, pv in sv.get_enum("SynonymScope").permissible_values.items()
-    }
+    scope_property = {name: pv.meaning for name, pv in sv.get_enum("SynonymScope").permissible_values.items()}
     synonyms: dict[str, Table] = {}
     relationships: dict[str, Table] = {}
     mappings: dict[str, Table] = {}
@@ -195,32 +193,28 @@ def annotation_kind(sv: SchemaView, slot_name: str) -> str:
 MAPPING_ANNOTATION_COLUMNS = ["mapping_justification", "comment"]
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Flatten a SourceRelease into ROBOT templates.")
-    parser.add_argument("release", type=Path)
-    parser.add_argument("--schema", type=Path, required=True)
-    parser.add_argument("--importmap", type=Path)
-    parser.add_argument("--prefixes", type=Path, required=True)
-    parser.add_argument("--out-dir", type=Path, required=True)
-    args = parser.parse_args()
-
-    importmap = json.loads(args.importmap.read_text()) if args.importmap else None
-    sv = SchemaView(str(args.schema), importmap=importmap)
-    loader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
-    release = yaml.load(args.release.read_text(), Loader=loader)
-
+def main(
+    release_path: Annotated[Path, typer.Argument(metavar="RELEASE")],
+    schema: Annotated[Path, typer.Option()],
+    prefixes: Annotated[Path, typer.Option(help="Prefix map (YAML) the release's CURIEs use")],
+    out_dir: Annotated[Path, typer.Option()],
+    importmap: Annotated[Path | None, typer.Option(help="LinkML importmap (JSON)")] = None,
+):
+    """Flatten a SourceRelease into ROBOT templates."""
+    sv = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
+    release = load_yaml(release_path)
     try:
         tables = flatten(release, sv)
     except ValueError as e:
-        sys.exit(f"template flattening failed: {e}")
+        raise SystemExit(f"template flattening failed: {e}")
 
-    args.out_dir.mkdir(parents=True, exist_ok=True)
-    for old in args.out_dir.glob("*.tsv"):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("*.tsv"):
         old.unlink()
     for name, table in tables.items():
-        table.write(args.out_dir / f"{name}.tsv")
-    (args.out_dir / "templates.txt").write_text(
-        "".join(f"{args.out_dir / name}.tsv\n" for name in tables if name != "declarations")
+        table.write(out_dir / f"{name}.tsv")
+    (out_dir / "templates.txt").write_text(
+        "".join(f"{out_dir / name}.tsv\n" for name in tables if name != "declarations")
     )
 
     meta = release["metadata"]
@@ -233,18 +227,18 @@ def main():
     ]
     for _, _, value in header:
         if value and any(c.isspace() for c in str(value)):
-            sys.exit(f"header value contains whitespace: {value!r}")
-    (args.out_dir / "annotate-args.txt").write_text(
+            raise SystemExit(f"header value contains whitespace: {value!r}")
+    (out_dir / "annotate-args.txt").write_text(
         " ".join(f"{flag} {prop} {value}" for flag, prop, value in header if value) + "\n"
     )
 
     # Release prefixes plus the vocabulary prefixes the templates use.
-    context = dict(yaml.safe_load(args.prefixes.read_text()))
+    context = dict(yaml.safe_load(prefixes.read_text()))
     for prefix, ns in sv.namespaces().items():
         context.setdefault(prefix, ns)
     context.setdefault("xsd", "http://www.w3.org/2001/XMLSchema#")
-    (args.out_dir / "prefixes.json").write_text(json.dumps({"@context": context}, indent=2))
+    (out_dir / "prefixes.json").write_text(json.dumps({"@context": context}, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)

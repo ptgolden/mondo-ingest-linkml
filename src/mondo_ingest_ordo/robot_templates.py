@@ -5,8 +5,8 @@ Python only writes tables here; ROBOT owns the OWL. Output, in --out-dir:
   declarations.tsv     every term and relationship target (owl:Class), relationship
                        predicate (owl:ObjectProperty) and synonym type (an
                        owl:AnnotationProperty under oboInOwl:SynonymTypeProperty)
-  terms.tsv            single-valued term annotations, definitions, obsoletion,
-                       subsets, parents
+  terms.tsv            deprecation, definition, replaced_by, consider, subsets,
+                       parents
   synonyms-<n>.tsv     one table per synonym scope
   relationships-<n>.tsv, mappings-<n>.tsv
                        one table per predicate, because ROBOT templates put the
@@ -19,8 +19,8 @@ Python only writes tables here; ROBOT owns the OWL. Output, in --out-dir:
 declarations.tsv has to be rendered first and given to the others as input, so that
 ROBOT can resolve the classes and properties they mention.
 
-OWL properties come from the schema where it says (slot_uri, enum meanings, SSSOM's
-slot URIs); the few choices it doesn't make are named below.
+OWL properties all come from the schema: slot URIs, the synonym-scope enum's
+meanings, and SSSOM's slot URIs for mapping annotations.
 """
 
 import csv
@@ -35,11 +35,6 @@ from linkml_runtime.utils.schemaview import SchemaView
 
 from mondo_ingest_ordo.prefixes import load_converter
 from mondo_ingest_ordo.yamlio import load_yaml
-
-# Choices the schema does not make.
-OBSOLETION_REASON = "rdfs:comment"
-# OBO synonym properties all carry a scope; skos:altLabel is the scope-less one.
-UNSCOPED_SYNONYM = "skos:altLabel"
 
 SPLIT = "|"
 
@@ -90,7 +85,6 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
     terms = Table([
         ("ID", "ID"),
         ("deprecated", f"AT {slot_uri(sv, 'Term', 'deprecated')}^^xsd:boolean"),
-        ("obsoletion_reason", f"A {OBSOLETION_REASON}"),
         ("definition", f"A {slot_uri(sv, 'Term', 'definition')}"),
         ("replaced_by", f"AI {slot_uri(sv, 'Term', 'replaced_by')}"),
         ("consider", f"AI {slot_uri(sv, 'Term', 'consider')} SPLIT={SPLIT}"),
@@ -122,7 +116,6 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
         terms.add(
             tid,
             "true" if term.get("deprecated") else "",
-            term.get("obsoletion_reason", ""),
             term.get("definition", ""),
             term.get("replaced_by", ""),
             join(term.get("consider", [])),
@@ -131,7 +124,7 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
         )
 
         for syn in term.get("synonyms", []):
-            prop = scope_property[syn["scope"]] if "scope" in syn else UNSCOPED_SYNONYM
+            prop = scope_property[syn["scope"]]
             table = synonyms.setdefault(prop, Table([
                 ("ID", "ID"),
                 ("text", f"A {prop}"),

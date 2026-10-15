@@ -150,4 +150,4 @@ validate: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.sssom.tsv
 	uv run sssom validate $(RELEASE)/ordo.sssom.tsv
 
 clean:
-	rm -rf $(TMP)/query $(TMP)/templates $(TMP)/semsql $(RELEASE)
+	rm -rf $(TMP)/templates $(TMP)/semsql $(RELEASE) $(MODELS)

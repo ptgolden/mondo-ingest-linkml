@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "curies>=0.15.3",
     "linkml-runtime>=1.12.1",
+    "pydantic>=2.14.1",
     "pyoxigraph>=0.5.11",
     "pyyaml>=6.0.3",
     "sssom-schema==1.0.0",
@@ -22,8 +23,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "check-jsonschema>=0.38.2",
-    "jsonschema>=4.26.0",
     "linkml>=1.12.1",
     "pyright>=1.1.414",
     "sssom>=0.4.17",

@@ -18,7 +18,7 @@ description: >-
   (3) Mappings are inlined on the term they are about, using the sssom-schema
   package's own slots, so the SSSOM file is a projection of this data, not a
   second source of truth.
-version: 0.4.0
+version: 0.5.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
 
 prefixes:
@@ -133,8 +133,6 @@ classes:
       deprecated:
         range: boolean
         slot_uri: owl:deprecated
-      obsoletion_reason:
-        description: The source's free-text explanation of why the term is inactive.
       replaced_by:
         description: The single term the source says replaces this one.
         range: uriorcurie
@@ -163,10 +161,8 @@ classes:
       text:
         required: true
       scope:
-        description: >-
-          Synonym scope. Absent means unscoped; Mondo's reading of a source
-          normally assigns one.
         range: SynonymScope
+        required: true
       synonym_type:
         description: A synonym type CURIE (e.g. ABBREVIATION), if the source states one.
         range: uriorcurie

@@ -7,3 +7,4 @@ WHERE {
       rdfs:subClassOf ?parents .
   FILTER(isIRI(?parents) && STRSTARTS(STR(?parents), "http://www.orpha.net/ORDO/Orphanet_"))
 }
+ORDER BY ?id ?parents

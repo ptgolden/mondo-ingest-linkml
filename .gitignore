@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 tmp/
 release/
+src/mondo_ingest_ordo/datamodel.py

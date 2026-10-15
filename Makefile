@@ -20,7 +20,8 @@ SCHEMA_VERSION := $(shell sed -n 's/^version: *//p' $(SCHEMA))
 SPARQL := sparql
 UPDATES = $(sort $(wildcard $(SPARQL)/*.ru))
 QUERIES = $(wildcard $(SPARQL)/*.rq)
-PYTHON_SRC := $(wildcard src/mondo_ingest_ordo/*.py)
+MODELS := src/mondo_ingest_ordo/datamodel.py
+PYTHON_SRC := $(filter-out $(MODELS),$(wildcard src/mondo_ingest_ordo/*.py))
 COMPAT := mondo-ingest
 
 TMP := tmp
@@ -56,17 +57,16 @@ $(TMP)/importmap.json: pyproject.toml uv.lock
 	uv run python -c 'import json, pathlib, sssom_schema; \
 		print(json.dumps({"sssom_schema:": str(pathlib.Path(sssom_schema.__file__).parent / "schema") + "/"}))' > $@
 
-# Pydantic models generated from the schema; a build artifact, not committed.
-$(TMP)/datamodel.py: $(SCHEMA) $(TMP)/importmap.json
+# Pydantic models generated from the schema, into the package; not committed.
+$(MODELS): $(SCHEMA) $(TMP)/importmap.json
 	uv run gen-pydantic --importmap $(TMP)/importmap.json $(SCHEMA) > $@.part
 	mv $@.part $@
 
-$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/ordo.owl $(UPDATES) $(QUERIES) $(TMP)/datamodel.py config/prefixes.yaml $(PYTHON_SRC)
+$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/ordo.owl $(UPDATES) $(QUERIES) $(MODELS) config/prefixes.yaml $(PYTHON_SRC)
 	mkdir -p $(RELEASE)
 	uv run python -m mondo_ingest_ordo.assemble \
 		--ontology $(TMP)/ordo.owl \
 		--sparql $(SPARQL) \
-		--models $(TMP)/datamodel.py \
 		--prefixes config/prefixes.yaml \
 		--set source_id=ordo \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \

@@ -13,3 +13,4 @@ WHERE {
       rdfs:subClassOf+ ?category .
   BIND(IRI(CONCAT("http://purl.obolibrary.org/obo/mondo#ordo_", REPLACE(LCASE(STR(?categoryLabel)), " ", "_"))) AS ?subsets)
 }
+ORDER BY ?id ?subsets

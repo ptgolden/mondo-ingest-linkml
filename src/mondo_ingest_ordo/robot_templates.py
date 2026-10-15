@@ -30,14 +30,13 @@ from typing import Annotated
 
 import curies
 import typer
+from linkml_runtime.linkml_model.meta import PermissibleValue
 from linkml_runtime.utils.schemaview import SchemaView
 
 from mondo_ingest_ordo.prefixes import load_converter
 from mondo_ingest_ordo.yamlio import load_yaml
 
 # Choices the schema does not make.
-DEFINITION = "IAO:0000115"
-DEFINITION_CITATION = "dcterms:source"
 OBSOLETION_REASON = "rdfs:comment"
 # OBO synonym properties all carry a scope; skos:altLabel is the scope-less one.
 UNSCOPED_SYNONYM = "skos:altLabel"
@@ -92,8 +91,7 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
         ("ID", "ID"),
         ("deprecated", f"AT {slot_uri(sv, 'Term', 'deprecated')}^^xsd:boolean"),
         ("obsoletion_reason", f"A {OBSOLETION_REASON}"),
-        ("definition", f"A {DEFINITION}"),
-        ("citations", f">A {DEFINITION_CITATION} SPLIT={SPLIT}"),
+        ("definition", f"A {slot_uri(sv, 'Term', 'definition')}"),
         ("replaced_by", f"AI {slot_uri(sv, 'Term', 'replaced_by')}"),
         ("consider", f"AI {slot_uri(sv, 'Term', 'consider')} SPLIT={SPLIT}"),
         ("subsets", f"AI {slot_uri(sv, 'Term', 'subsets')} SPLIT={SPLIT}"),
@@ -101,7 +99,13 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
     ])
     tables["terms"] = terms
 
-    scope_property = {name: pv.meaning for name, pv in sv.get_enum("SynonymScope").permissible_values.items()}
+    scope_enum = sv.get_enum("SynonymScope")
+    assert scope_enum is not None and isinstance(scope_enum.permissible_values, dict)
+    scope_property = {
+        str(name): str(pv.meaning)
+        for name, pv in scope_enum.permissible_values.items()
+        if isinstance(pv, PermissibleValue)
+    }
     synonyms: dict[str, Table] = {}
     relationships: dict[str, Table] = {}
     mappings: dict[str, Table] = {}
@@ -115,13 +119,11 @@ def flatten(release: dict, sv: SchemaView) -> dict[str, Table]:
         tid = term["id"]
         decl.add(tid, "owl:Class", term["label"], "")
 
-        definition = term.get("definition", {})
         terms.add(
             tid,
             "true" if term.get("deprecated") else "",
             term.get("obsoletion_reason", ""),
-            definition.get("text", ""),
-            join(definition.get("citations", [])),
+            term.get("definition", ""),
             term.get("replaced_by", ""),
             join(term.get("consider", [])),
             join(term.get("subsets", [])),

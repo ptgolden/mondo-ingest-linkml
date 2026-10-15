@@ -28,3 +28,4 @@ WHERE {
   FILTER(STRSTARTS(STR(?x), "HGNC:"))
   BIND(STRDT(STR(?x), xsd:anyURI) AS ?target)
 }
+ORDER BY ?id ?predicate ?target

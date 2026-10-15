@@ -1,8 +1,0 @@
-# -> Term.definition. ORDO's citation for every definition is just "Orphanet"; not taken in.
-PREFIX efo: <http://www.ebi.ac.uk/efo/>
-SELECT DISTINCT ?id ?text
-WHERE {
-  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
-      efo:definition ?d .
-  BIND(STR(?d) AS ?text)
-}

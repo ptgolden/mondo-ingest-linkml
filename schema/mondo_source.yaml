@@ -14,11 +14,11 @@ description: >-
   (1) Data Mondo's interpretation creates, as opposed to translates, says so: e.g.
   synonyms copied from labels carry synonym_type mondo:GENERATED_FROM_LABEL.
   (2) No overloaded fields. OBO's `xref` and `source` are split into a mapping
-  predicate, a mapping justification and a comment, and definition citations.
+  predicate, a mapping justification and a comment.
   (3) Mappings are inlined on the term they are about, using the sssom-schema
   package's own slots, so the SSSOM file is a projection of this data, not a
   second source of truth.
-version: 0.3.0
+version: 0.4.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
 
 prefixes:
@@ -111,8 +111,8 @@ classes:
         slot_uri: rdfs:label
         required: true
       definition:
-        range: Definition
-        inlined: true
+        description: Textual definition.
+        slot_uri: IAO:0000115
       synonyms:
         range: Synonym
         multivalued: true
@@ -157,19 +157,6 @@ classes:
         range: TermMapping
         multivalued: true
         inlined_as_list: true
-        annotations:
-          # Output order, so a changed mapping shows up as a local edit in a diff.
-          sort_by: object_id predicate_id
-
-  Definition:
-    attributes:
-      text:
-        required: true
-      citations:
-        description: >-
-          What the source cites for the definition. CURIEs where the source gives
-          identifiers; free text otherwise (e.g. ORDO only says "Orphanet").
-        multivalued: true
 
   Synonym:
     attributes:

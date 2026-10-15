@@ -20,7 +20,7 @@ YAML_12_NON_STRING = re.compile(
 )
 
 
-class Dumper(getattr(yaml, "CSafeDumper", yaml.SafeDumper)):
+class Dumper(yaml.CSafeDumper):
     pass
 
 
@@ -38,4 +38,4 @@ def dump_yaml(data, path: Path):
 
 
 def load_yaml(path: Path):
-    return yaml.load(Path(path).read_text(), Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
+    return yaml.load(Path(path).read_text(), Loader=yaml.CSafeLoader)

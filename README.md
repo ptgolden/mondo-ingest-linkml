@@ -45,49 +45,50 @@ The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOA
 ## How it works
 
 ```
-ORDO OWL --robot query: 2 updates, then 11 SELECTs (one load)--> SPARQL XML results
-SPARQL XML results --assemble.py (generic, schema-driven)--> ordo.yaml
+ORDO OWL --assemble.py: load into Oxigraph, 2 SPARQL updates, 7 SELECTs--> ordo.yaml
 ordo.yaml --sssom.py--> ordo.sssom.tsv
 ordo.yaml --robot_templates.py (flatten to TSV)--> robot template --> ordo.owl
 ```
 
-- **Mondo's reading of ORDO happens at extraction, in SPARQL run by ROBOT.** Before the
-  SELECTs, two updates run:
-  - `00-part-of-as-parents.ru` is mondo-ingest's own query, verbatim: Mondo reads ORDO's
-    `part_of` as hierarchy;
-  - `01-mark-in-scope.ru` marks the classes Mondo takes in.
-
-  Each SELECT then extracts one part of the schema from the marked classes, and is named
-  after the slot it fills (`synonyms.rq` fills `Term.synonyms`). Queries do no prefix
-  handling: they return IRIs as IRIs, and identifiers ORDO only has as strings (its
-  xrefs) as literals typed `xsd:anyURI`. Each query documents which mondo-ingest step it
-  reproduces: `exact_syn_from_label.ru`,
-  `fix-labels-with-brackets.ru`, `ordo-construct-d2g.ru`, `ordo-construct-subsets.ru`,
-  `fix_deprecated.ru`, the property map and the relevant-signature query.
+- **Mondo's reading of ORDO happens in SPARQL** (`sparql/`), run in-process by Oxigraph.
+  - Two updates run first:
+    - `00-part-of-as-parents.ru` is mondo-ingest's own query, verbatim: Mondo reads ORDO's
+      `part_of` as hierarchy;
+    - `01-mark-in-scope.ru` marks the classes Mondo takes in.
+  - Each SELECT then fills one part of the release, by its name:
+    - `terms.rq` returns one row per term with all its single-valued slots;
+    - every other `<slot>.rq` fills a multivalued slot (`synonyms.rq` → `Term.synonyms`);
+    - a row with columns beyond `?id ?<slot>` is a nested object.
+  - Each query ends in an `ORDER BY`, which is what makes the output deterministic.
+  - Queries do no prefix handling. They return IRIs as IRIs, and identifiers ORDO only
+    has as strings (its xrefs) as literals typed `xsd:anyURI`.
+  - Each query documents which mondo-ingest step it reproduces: `exact_syn_from_label.ru`,
+    `fix-labels-with-brackets.ru`, `ordo-construct-d2g.ru`, `ordo-construct-subsets.ru`,
+    `fix_deprecated.ru`, the property map and the relevant-signature query.
 - **Created data says so.** Synonyms copied from labels are typed
   `mondo:GENERATED_FROM_LABEL`, and bracket-stripped ones `mondo:GENERATED`, so the YAML
   shows what Mondo added rather than ORDO said.
-- **Python only reshapes.**
-  - `assemble.py` reads ROBOT's SPARQL XML results, which keep IRIs, literals and
-    datatypes apart; ROBOT has no SPARQL JSON output.
-    - Identifiers go through `curies` and `config/prefixes.yaml`, an extended prefix map:
+- **The Python leans on libraries.**
+  - `assemble.py` (about 70 lines) groups query rows by term and hands them over:
+    - identifiers to `curies`, with `config/prefixes.yaml` as an extended prefix map.
       IRIs are compressed, and `anyURI` literals are standardised, so ORDO's spellings
-      (`ICD-10`, `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`.
-    - The rest is done by Pydantic models generated from the schema at build time
-      (`gen-pydantic`, into `tmp/`): their field types say what is a list or a nested
-      object, and building them validates types, required slots, CURIE patterns and
-      unknown fields.
-    - Mapping sort order comes from a `sort_by` annotation in the schema.
+      (`ICD-10`, `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`;
+    - everything else to the Pydantic models generated from the schema (`gen-pydantic`,
+      into the package at build time, not committed). Building them coerces types and
+      checks required slots, CURIE patterns and unknown fields.
 
-    It knows nothing about ORDO.
+    Its one check of its own: a term with two values for a single-valued slot fails,
+    because keeping either would silently drop the other.
   - `sssom.py` flattens the mappings.
   - `robot_templates.py` flattens `ordo.yaml` into ROBOT template TSVs, taking OWL
     properties from the schema's slot URIs.
   - `yamlio.py` writes YAML that reads back the same under YAML 1.1 and 1.2.
 
-  None of them is ORDO-specific, and all three CLIs use Typer.
-- **Fail hard.** Assembly stops on two values for a single-valued slot, a row for a term
-  that doesn't exist, a malformed CURIE, or a prefix missing from `config/prefixes.yaml`.
+  None of them is ORDO-specific. The CLIs use Typer, and `uv run pyright` is clean.
+- **Fail hard.** Assembly stops on:
+  - a term with conflicting single-valued slots;
+  - an identifier with no prefix in the map;
+  - anything the models reject.
 
 ## Verified against mondo-ingest
 
@@ -167,7 +168,9 @@ ORDO content mondo-ingest never took in, and which isn't taken in here either:
 ### About the approach
 
 - **Timings (ORDO 4.9):**
-  - `make all` takes about 1.5 minutes with ORDO already downloaded;
+  - building `ordo.yaml` takes about 15 s (Oxigraph load, updates, queries, models);
+  - `make all` takes about 1.5 minutes with ORDO already downloaded, mostly ROBOT
+    rendering `ordo.owl`;
   - `make bundle` adds about 1.5 minutes;
   - `make validate` takes about 1.5 minutes, almost all YAML parsing.
 - **YAML is a cost and a correctness hazard, and stays because curators read it.**

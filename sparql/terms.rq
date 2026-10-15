@@ -1,11 +1,19 @@
-# One row per in-scope class. -> Term
-# Labels: 4.9 has a few classes with both "X" and "X"@en; STR + DISTINCT collapses them.
-# Deprecated: owl:deprecated (ORDO 4.9), or anything under Inactive clinical entity
-# (C041), including C041 and its own category classes, as mondo-ingest's
-# fix_deprecated.ru does. ORDO's free-text reason_for_inactivation is not taken in.
+# One row per in-scope class, with every single-valued Term slot. -> Term
+#
+# - label: 4.9 has a few classes with both "X" and "X"@en; STR + DISTINCT collapses
+#   them. Two different labels give two rows, which the assembler rejects.
+# - deprecated: owl:deprecated (ORDO 4.9), or anything under Inactive clinical entity
+#   (C041), including C041 and its own category classes, as mondo-ingest's
+#   fix_deprecated.ru does. ORDO's free-text reason_for_inactivation is not taken in.
+# - definition: ORDO's only citation for any definition is "Orphanet"; not taken in.
+# - replaced_by: ORDO defines "Moved to" (C056) as redirection to a code of replacement.
+#
+# Terms come out in ORPHAcode order.
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-SELECT DISTINCT ?id ?label ?deprecated
+PREFIX efo: <http://www.ebi.ac.uk/efo/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT DISTINCT ?id ?label ?deprecated ?definition ?replaced_by
 WHERE {
   ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
       rdfs:label ?l .
@@ -13,4 +21,7 @@ WHERE {
   OPTIONAL { ?id owl:deprecated ?d }
   BIND(IF(BOUND(?d) || EXISTS { ?id rdfs:subClassOf* <http://www.orpha.net/ORDO/Orphanet_C041> }, true, ?unbound)
        AS ?deprecated)
+  OPTIONAL { ?id efo:definition ?def BIND(STR(?def) AS ?definition) }
+  OPTIONAL { ?id rdfs:subClassOf [ owl:onProperty <http://www.orpha.net/ORDO/Orphanet_C056> ; owl:someValuesFrom ?replaced_by ] }
 }
+ORDER BY xsd:integer(STRAFTER(STR(?id), "http://www.orpha.net/ORDO/Orphanet_")) ?id

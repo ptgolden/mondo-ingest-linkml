@@ -30,3 +30,4 @@ WHERE {
   }
   BIND("EXACT" AS ?scope)
 }
+ORDER BY ?id ?text ?synonym_type

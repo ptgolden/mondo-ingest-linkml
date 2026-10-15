@@ -48,3 +48,4 @@ WHERE {
   BIND(REPLACE(STR(?x), " ", "") AS ?xs)
   BIND(STRDT(?xs, xsd:anyURI) AS ?object_id)
 }
+ORDER BY ?id STR(?object_id) ?predicate_id ?comment

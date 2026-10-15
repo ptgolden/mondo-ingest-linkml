@@ -827,6 +827,7 @@ source = { editable = "." }
 dependencies = [
     { name = "curies" },
     { name = "linkml-runtime" },
+    { name = "pyoxigraph" },
     { name = "pyyaml" },
     { name = "sssom-schema" },
     { name = "typer" },
@@ -844,6 +845,7 @@ dev = [
 requires-dist = [
     { name = "curies", specifier = ">=0.15.3" },
     { name = "linkml-runtime", specifier = ">=1.12.1" },
+    { name = "pyoxigraph", specifier = ">=0.5.11" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "sssom-schema", specifier = "==1.0.0" },
     { name = "typer", specifier = ">=0.27.3" },

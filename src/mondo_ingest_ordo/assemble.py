@@ -1,10 +1,12 @@
-"""Assemble a SourceRelease YAML from SPARQL query results, via the schema's Pydantic models.
+"""Build a SourceRelease YAML from a source ontology, via SPARQL and the schema's Pydantic models.
 
-Each result file fills one part of the release, by its name:
+The ontology is loaded into an in-memory Oxigraph store. The SPARQL directory's
+updates (*.ru) run first, in name order; then each query (*.rq) fills one part of
+the release, by its name:
 
-  metadata.srx   the release metadata (one row)
-  terms.srx      ?id plus single-valued Term slots, one term per row
-  <slot>.srx     Term.<slot>, one value per row, keyed by ?id
+  metadata.rq    the release metadata (one row)
+  terms.rq       ?id plus single-valued Term slots, one term per row
+  <slot>.rq      Term.<slot>, one value per row, keyed by ?id
 
 Identifiers are normalised with the prefix map as they are read: IRIs are
 compressed to CURIEs, and literals typed xsd:anyURI (identifiers a source gives as
@@ -22,20 +24,18 @@ import importlib.util
 import json
 import types
 import typing
-import xml.etree.ElementTree as ET
 from collections import defaultdict
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, Any
 
 import curies
 import pydantic
+import pyoxigraph as ox
 import typer
 
 from mondo_ingest_ordo.prefixes import load_converter
 from mondo_ingest_ordo.yamlio import dump_yaml
 
-RESULTS = "{http://www.w3.org/2005/sparql-results#}"
 XSD = "http://www.w3.org/2001/XMLSchema#"
 
 
@@ -43,34 +43,40 @@ class AssemblyError(Exception):
     pass
 
 
-def read_results(path: Path, converter: curies.Converter) -> Iterator[dict[str, Any]]:
-    """Rows of a SPARQL XML results file, identifiers normalised, booleans and integers typed."""
-    for _, el in ET.iterparse(path):
-        if el.tag != RESULTS + "result":
-            continue
-        row = {}
-        for binding in el.iter(RESULTS + "binding"):
-            name, value = binding.get("name"), binding[0]
-            kind, text, datatype = value.tag.removeprefix(RESULTS), value.text or "", value.get("datatype")
-            if kind == "uri":
-                normalised = converter.compress(text)
-            elif kind == "literal" and datatype == XSD + "anyURI":
-                normalised = converter.standardize_curie(text)
-            elif kind == "literal":
-                if datatype == XSD + "boolean":
-                    row[name] = text == "true"
-                elif datatype == XSD + "integer":
-                    row[name] = int(text)
-                else:
-                    row[name] = text
-                continue
-            else:
-                raise AssemblyError(f"{path.name}: unexpected {kind} for ?{name}")
-            if normalised is None:
-                raise AssemblyError(f"{path.name}: ?{name} {text!r} has no prefix in the prefix map")
-            row[name] = normalised
-        el.clear()
-        yield row
+def run_queries(ontology: Path, sparql: Path, converter: curies.Converter) -> dict[str, list[dict[str, Any]]]:
+    """Load the ontology, run the updates, then return each query's rows by query name."""
+    store = ox.Store()
+    store.bulk_load(path=str(ontology), format=ox.RdfFormat.RDF_XML)
+    for update in sorted(sparql.glob("*.ru")):
+        store.update(update.read_text())
+    results = {}
+    for query in sorted(sparql.glob("*.rq")):
+        solutions = store.query(query.read_text())
+        results[query.stem] = [
+            {var.value: value(solution[var], converter, query.name, var.value)
+             for var in solutions.variables if solution[var] is not None}
+            for solution in solutions
+        ]
+    return results
+
+
+def value(term, converter: curies.Converter, query: str, var: str) -> Any:
+    """A query result term as release data: identifiers normalised, booleans and integers typed."""
+    if isinstance(term, ox.NamedNode):
+        normalised = converter.compress(term.value)
+    elif isinstance(term, ox.Literal) and term.datatype.value == XSD + "anyURI":
+        normalised = converter.standardize_curie(term.value)
+    elif isinstance(term, ox.Literal):
+        if term.datatype.value == XSD + "boolean":
+            return term.value == "true"
+        if term.datatype.value == XSD + "integer":
+            return int(term.value)
+        return term.value
+    else:
+        raise AssemblyError(f"{query}: unexpected {type(term).__name__} for ?{var}")
+    if normalised is None:
+        raise AssemblyError(f"{query}: ?{var} {term.value!r} has no prefix in the prefix map")
+    return normalised
 
 
 def load_models(path: Path) -> types.ModuleType:
@@ -120,28 +126,26 @@ def gather(model: type[pydantic.BaseModel], values: dict[str, list], where: str)
     return out
 
 
-def assemble(results: Path, models: types.ModuleType, converter: curies.Converter, extra_metadata: dict):
-    metadata_rows = list(read_results(results / "metadata.srx", converter))
+def assemble(results: dict[str, list[dict]], models: types.ModuleType, extra_metadata: dict):
+    metadata_rows = results.pop("metadata")
     if len(metadata_rows) != 1:
-        raise AssemblyError(f"metadata.srx has {len(metadata_rows)} rows, expected 1")
+        raise AssemblyError(f"metadata.rq returned {len(metadata_rows)} rows, expected 1")
 
     terms: dict[str, dict[str, list]] = {}
-    for row in read_results(results / "terms.srx", converter):
+    for row in results.pop("terms"):
         term = terms.setdefault(row["id"], defaultdict(list))
         for k, v in row.items():
             term[k].append(v)
 
-    for path in sorted(results.glob("*.srx")):
-        if path.stem in ("metadata", "terms"):
-            continue
-        if path.stem not in models.Term.model_fields:
-            raise AssemblyError(f"{path.name}: Term has no slot {path.stem!r}")
-        _, nested = field_shape(models.Term.model_fields[path.stem])
-        for row in read_results(path, converter):
+    for slot, rows in results.items():
+        if slot not in models.Term.model_fields:
+            raise AssemblyError(f"{slot}.rq: Term has no slot {slot!r}")
+        _, nested = field_shape(models.Term.model_fields[slot])
+        for row in rows:
             tid = row.pop("id")
             if tid not in terms:
-                raise AssemblyError(f"{path.name}: row for unknown term {tid}")
-            terms[tid][path.stem].append(row if nested else row[path.stem])
+                raise AssemblyError(f"{slot}.rq: row for unknown term {tid}")
+            terms[tid][slot].append(row if nested else row[slot])
 
     return models.SourceRelease(
         metadata={**metadata_rows[0], **extra_metadata},
@@ -155,16 +159,18 @@ def id_key(curie: str):
 
 
 def main(
-    results: Annotated[Path, typer.Option(help="Directory of SPARQL XML result files")],
+    ontology: Annotated[Path, typer.Option(help="The source ontology (RDF/XML)")],
+    sparql: Annotated[Path, typer.Option(help="Directory of SPARQL updates (*.ru) and queries (*.rq)")],
     models: Annotated[Path, typer.Option(help="Pydantic models generated from the schema (gen-pydantic)")],
     prefixes: Annotated[Path, typer.Option(help="Extended prefix map (YAML) every identifier must use")],
     output: Annotated[Path, typer.Option()],
     metadata_output: Annotated[Path | None, typer.Option()] = None,
     set_: Annotated[list[str], typer.Option("--set", help="Extra metadata, KEY=VALUE")] = [],
 ):
-    """Assemble a SourceRelease YAML from SPARQL query results."""
+    """Build a SourceRelease YAML from a source ontology."""
     try:
-        release = assemble(results, load_models(models), load_converter(prefixes), dict(s.split("=", 1) for s in set_))
+        results = run_queries(ontology, sparql, load_converter(prefixes))
+        release = assemble(results, load_models(models), dict(s.split("=", 1) for s in set_))
     except (AssemblyError, pydantic.ValidationError) as e:
         raise SystemExit(f"assembly failed: {e}")
     data = release.model_dump(mode="json", exclude_none=True)

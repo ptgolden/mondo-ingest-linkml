@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "curies>=0.15.3",
     "linkml-runtime>=1.12.1",
+    "pyoxigraph>=0.5.11",
     "pyyaml>=6.0.3",
     "sssom-schema==1.0.0",
     "typer>=0.27.3",

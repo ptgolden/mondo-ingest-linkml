@@ -7,8 +7,8 @@
 #   make validate   validate ordo.yaml against the schema and ordo.sssom.tsv as SSSOM
 #   make refresh    re-download ORDO, then build
 #
-# ROBOT does all RDF work. Python only reshapes: SPARQL results into ordo.yaml, and
-# ordo.yaml into SSSOM and ROBOT templates.
+# ordo.yaml is built in-process: ORDO is loaded into Oxigraph and queried with the
+# SPARQL in sparql/. ROBOT renders ordo.owl from it, and builds the mirror.
 
 # Stable URL for the current English ORDO (the same one mondo-ingest uses). The
 # exact version is recorded from the file's own owl:versionIRI.
@@ -49,15 +49,6 @@ refresh:
 	$(MAKE) all
 
 # ── ordo.yaml ─────────────────────────────────────────────────────────────────
-# One ROBOT invocation loads ORDO once, applies the updates (part_of as parents,
-# scope marking), then runs every SELECT. Results are SPARQL XML, which keeps IRIs,
-# literals and datatypes apart (ROBOT has no SPARQL JSON output).
-$(TMP)/query/.done: $(TMP)/ordo.owl $(UPDATES) $(QUERIES)
-	rm -rf $(TMP)/query && mkdir -p $(TMP)/query
-	robot query -i $< $(foreach u,$(UPDATES),--update $(u)) \
-		query --format sxml $(foreach q,$(QUERIES),--query $(q) $(TMP)/query/$(basename $(notdir $(q))).srx)
-	touch $@
-
 # Resolve the schema's sssom_schema: import to the installed sssom-schema package
 # (pinned in pyproject.toml to the same version as the URL in the schema).
 $(TMP)/importmap.json: pyproject.toml uv.lock
@@ -70,10 +61,11 @@ $(TMP)/datamodel.py: $(SCHEMA) $(TMP)/importmap.json
 	uv run gen-pydantic --importmap $(TMP)/importmap.json $(SCHEMA) > $@.part
 	mv $@.part $@
 
-$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/query/.done $(TMP)/datamodel.py config/prefixes.yaml $(PYTHON_SRC)
+$(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml &: $(TMP)/ordo.owl $(UPDATES) $(QUERIES) $(TMP)/datamodel.py config/prefixes.yaml $(PYTHON_SRC)
 	mkdir -p $(RELEASE)
 	uv run python -m mondo_ingest_ordo.assemble \
-		--results $(TMP)/query \
+		--ontology $(TMP)/ordo.owl \
+		--sparql $(SPARQL) \
 		--models $(TMP)/datamodel.py \
 		--prefixes config/prefixes.yaml \
 		--set source_id=ordo \

@@ -1,7 +1,9 @@
 """Build a SourceRelease YAML from a source ontology.
 
-Oxigraph loads the ontology and runs the SPARQL directory: its updates (*.ru) in
-name order, then its queries (*.rq), each of which fills one part of the release:
+Oxigraph loads the ontology and runs the SPARQL directories' updates (*.ru) in name
+order, then their queries (*.rq). A file in a later directory replaces one of the same
+name in an earlier one, so a source can override mondo-source's shared queries. Each
+query fills one part of the release:
 
   metadata.rq   the release metadata (one row)
   terms.rq      one row per term: ?id and its single-valued slots
@@ -23,19 +25,25 @@ import pydantic
 import pyoxigraph as ox
 import typer
 
-from mondo_ingest_ordo.prefixes import load_converter
-from mondo_ingest_ordo.yamlio import dump_yaml
+from mondo_source.prefixes import load_converter
+from mondo_source.yamlio import dump_yaml
 
 ANY_URI = "http://www.w3.org/2001/XMLSchema#anyURI"
 
 
-def run_queries(ontology: Path, sparql: Path, converter: curies.Converter) -> dict[str, list[dict]]:
+def run_queries(ontology: Path, sparql: list[Path], converter: curies.Converter) -> dict[str, list[dict]]:
+    extension = ontology.suffix.removeprefix(".")
+    rdf_format = ox.RdfFormat.RDF_XML if extension == "owl" else ox.RdfFormat.from_extension(extension)
+    if rdf_format is None:
+        raise ValueError(f"unknown RDF format for {ontology}")
     store = ox.Store()
-    store.bulk_load(path=str(ontology), format=ox.RdfFormat.RDF_XML)
-    for update in sorted(sparql.glob("*.ru")):
-        store.update(update.read_text())
+    store.bulk_load(path=str(ontology), format=rdf_format)
+    files = {f.name: f for d in sparql for f in sorted(d.iterdir()) if f.suffix in (".ru", ".rq")}
+    for name in sorted(files):
+        if name.endswith(".ru"):
+            store.update(files[name].read_text())
     results = {}
-    for query in sorted(sparql.glob("*.rq")):
+    for query in (files[name] for name in sorted(files) if name.endswith(".rq")):
         solutions = store.query(query.read_text())
         assert isinstance(solutions, ox.QuerySolutions), f"{query.name} is not a SELECT query"
         results[query.stem] = [
@@ -60,7 +68,7 @@ def as_value(term, converter: curies.Converter) -> str:
 
 
 def build(results: dict[str, list[dict]], extra_metadata: dict):
-    from mondo_ingest_ordo.datamodel import ReleaseMetadata, SourceRelease, Term
+    from mondo_source.datamodel import ReleaseMetadata, SourceRelease, Term
 
     (metadata,) = results.pop("metadata")
     terms = {}
@@ -81,8 +89,10 @@ def build(results: dict[str, list[dict]], extra_metadata: dict):
 
 
 def main(
-    ontology: Annotated[Path, typer.Option(help="The source ontology (RDF/XML)")],
-    sparql: Annotated[Path, typer.Option(help="Directory of SPARQL updates (*.ru) and queries (*.rq)")],
+    ontology: Annotated[Path, typer.Option(help="The source ontology (RDF/XML or Turtle, by extension)")],
+    sparql: Annotated[
+        list[Path], typer.Option(help="Directory of SPARQL updates (*.ru) and queries (*.rq); repeatable, later wins")
+    ],
     prefixes: Annotated[Path, typer.Option(help="Extended prefix map (YAML) every identifier must use")],
     output: Annotated[Path, typer.Option()],
     metadata_output: Annotated[Path | None, typer.Option()] = None,
@@ -99,6 +109,3 @@ def main(
     if metadata_output:
         dump_yaml(data["metadata"], metadata_output)
 
-
-if __name__ == "__main__":
-    typer.run(main)

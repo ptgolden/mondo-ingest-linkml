@@ -14,8 +14,8 @@ import curies
 import typer
 import yaml
 
-from mondo_ingest_ordo.prefixes import load_converter
-from mondo_ingest_ordo.yamlio import load_yaml
+from mondo_source.prefixes import load_converter
+from mondo_source.yamlio import load_yaml
 
 COLUMNS = ["subject_id", "subject_label", "predicate_id", "object_id", "mapping_justification", "comment"]
 
@@ -72,6 +72,3 @@ def main(
     header, rows = project(load_yaml(release), converter, yaml.safe_load(metadata.read_text()))
     write(header, rows, output)
 
-
-if __name__ == "__main__":
-    typer.run(main)

@@ -23,7 +23,7 @@ from linkml_runtime.loaders import yaml_loader
 from linkml_runtime.utils.schemaview import SchemaView
 from linkml_runtime.utils.yamlutils import YAMLRoot
 
-from mondo_ingest_ordo.prefixes import load_converter
+from mondo_source.prefixes import load_converter
 
 
 class Dumper(OWLDumper):
@@ -57,6 +57,3 @@ def main(
     sv.set_modified()
     output.write_text(Dumper(converter).dumps(element, schemaview=sv, output_type="owl"))
 
-
-if __name__ == "__main__":
-    typer.run(main)

@@ -47,7 +47,7 @@ The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOA
 ```
 ORDO OWL --assemble.py: load into Oxigraph, 2 SPARQL updates, 7 SELECTs--> ordo.yaml
 ordo.yaml --sssom.py--> ordo.sssom.tsv
-ordo.yaml --robot_templates.py (flatten to TSV)--> robot template --> ordo.owl
+ordo.yaml --render_owl.py (linkml-owl, from the schema's owl annotations)--> robot annotate (header) --> ordo.owl
 ```
 
 - **Mondo's reading of ORDO happens in SPARQL** (`sparql/`), run in-process by Oxigraph.
@@ -80,8 +80,11 @@ ordo.yaml --robot_templates.py (flatten to TSV)--> robot template --> ordo.owl
     Its one check of its own: a term with two values for a single-valued slot fails,
     because keeping either would silently drop the other.
   - `sssom.py` flattens the mappings.
-  - `robot_templates.py` flattens `ordo.yaml` into ROBOT template TSVs, taking OWL
-    properties from the schema's slot URIs.
+  - `render_owl.py` renders `ordo.yaml` as OWL with linkml-owl, which reads `owl`
+    annotations in the schema: an axiom type per slot, and OWL functional-syntax
+    templates for synonyms, relationships, mappings and subsets. Its only additions to
+    linkml-owl are adding the release's prefixes and an `iri()` template function (for
+    ICD-10 codes like `A98.5+`, which OWL functional syntax can't abbreviate).
   - `yamlio.py` writes YAML that reads back the same under YAML 1.1 and 1.2.
 
   None of them is ORDO-specific. The CLIs use Typer, and `uv run pyright` is clean.
@@ -169,8 +172,11 @@ ORDO content mondo-ingest never took in, and which isn't taken in here either:
 
 - **Timings (ORDO 4.9):**
   - building `ordo.yaml` takes about 15 s (Oxigraph load, updates, queries, models);
-  - `make all` takes about 1.5 minutes with ORDO already downloaded, mostly ROBOT
-    rendering `ordo.owl`;
+  - `make all` takes about 6.5 minutes with ORDO already downloaded, about 5 of them
+    linkml-owl rendering `ordo.owl`. Three fixes to linkml-owl (memoising slot lookups,
+    compiling each template once, lazy logging arguments) bring that render from about
+    300 s to about 100 s with identical output; the ROBOT-template rendering it replaced
+    took about 30 s;
   - `make bundle` adds about 1.5 minutes;
   - `make validate` takes about 1.5 minutes, almost all YAML parsing.
 - **YAML is a cost and a correctness hazard, and stays because curators read it.**

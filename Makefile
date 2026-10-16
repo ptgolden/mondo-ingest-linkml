@@ -8,7 +8,7 @@
 #   make refresh    re-download ORDO, then build
 #
 # ordo.yaml is built in-process: ORDO is loaded into Oxigraph and queried with the
-# SPARQL in sparql/. ROBOT renders ordo.owl from it, and builds the mirror.
+# SPARQL in sparql/. linkml-owl renders ordo.owl from it; ROBOT builds the mirror.
 
 # Stable URL for the current English ORDO (the same one mondo-ingest uses). The
 # exact version is recorded from the file's own owl:versionIRI.
@@ -83,25 +83,22 @@ $(RELEASE)/ordo.sssom.tsv: $(RELEASE)/ordo.yaml config/prefixes.yaml $(COMPAT)/o
 		--metadata $(COMPAT)/ordo.metadata.sssom.yml \
 		--output $@
 
-# ordo.owl: Python flattens ordo.yaml to ROBOT templates and ROBOT builds the OWL.
-# Declarations go first so the other templates can resolve what they mention.
-$(TMP)/templates/.done: $(RELEASE)/ordo.yaml $(TMP)/importmap.json $(SCHEMA) config/prefixes.yaml $(PYTHON_SRC)
-	uv run python -m mondo_ingest_ordo.robot_templates $< \
-		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
-		--prefixes config/prefixes.yaml --out-dir $(TMP)/templates
-	touch $@
+# ordo.owl: linkml-owl renders ordo.yaml from the schema's `owl` annotations; ROBOT adds
+# the ontology header (linkml-owl's RDF/XML has none) from the release metadata.
+META = $$(sed -n "s/^$(1): *'\{0,1\}\([^']*\)'\{0,1\}$$/\1/p" $(RELEASE)/ordo.metadata.yaml)
 
-$(RELEASE)/ordo.owl: $(TMP)/templates/.done
-	robot template --add-prefixes $(TMP)/templates/prefixes.json \
-		--template $(TMP)/templates/declarations.tsv \
-		--output $(TMP)/templates/declarations.owl
-	robot template --input $(TMP)/templates/declarations.owl --merge-before \
-		--add-prefixes $(TMP)/templates/prefixes.json \
-		$$(sed 's/^/--template /' $(TMP)/templates/templates.txt) \
-		annotate --add-prefixes $(TMP)/templates/prefixes.json \
+$(RELEASE)/ordo.owl: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.metadata.yaml $(TMP)/importmap.json $(SCHEMA) config/prefixes.yaml $(PYTHON_SRC)
+	uv run python -m mondo_ingest_ordo.render_owl $< \
+		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
+		--prefixes config/prefixes.yaml --output $(TMP)/ordo.rendered.owl
+	robot annotate -i $(TMP)/ordo.rendered.owl \
 		--ontology-iri $(COMPONENT_IRI) \
 		--version-iri http://purl.obolibrary.org/obo/mondo/sources/$(TODAY)/ordo.owl \
-		$$(cat $(TMP)/templates/annotate-args.txt) \
+		--annotation http://www.w3.org/2002/07/owl#versionInfo "$(call META,source_version)" \
+		--link-annotation http://www.geneontology.org/formats/oboInOwl#source "$(call META,source_version_iri)" \
+		--link-annotation http://purl.org/dc/terms/license "$(call META,source_license)" \
+		--annotation http://purl.org/dc/terms/modified "$(call META,source_date)" \
+		--annotation http://purl.org/pav/createdOn "$(call META,generated_at)" \
 		--output $@
 
 $(RELEASE)/component_signature-ordo.tsv: $(RELEASE)/ordo.owl $(COMPAT)/classes.sparql
@@ -150,4 +147,4 @@ validate: $(RELEASE)/ordo.yaml $(RELEASE)/ordo.sssom.tsv
 	uv run sssom validate $(RELEASE)/ordo.sssom.tsv
 
 clean:
-	rm -rf $(TMP)/templates $(TMP)/semsql $(RELEASE) $(MODELS)
+	rm -rf $(TMP)/semsql $(TMP)/ordo.rendered.owl $(RELEASE) $(MODELS)

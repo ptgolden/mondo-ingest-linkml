@@ -11,7 +11,8 @@
 - {prefix: oboInOwl, uri_prefix: "http://www.geneontology.org/formats/oboInOwl#"}
 - {prefix: skos, uri_prefix: "http://www.w3.org/2004/02/skos/core#"}
 - {prefix: semapv, uri_prefix: "https://w3id.org/semapv/vocab/"}
-- {prefix: mondo, uri_prefix: "http://purl.obolibrary.org/obo/mondo#"}
+# Not "mondo": LinkML treats prefixes case-insensitively, so it would collide with MONDO.
+- {prefix: mondo_vocab, uri_prefix: "http://purl.obolibrary.org/obo/mondo#"}
 - {prefix: RO, uri_prefix: "http://purl.obolibrary.org/obo/RO_"}
 - {prefix: orcid, uri_prefix: "https://orcid.org/"}
 

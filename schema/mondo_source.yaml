@@ -18,7 +18,7 @@ description: >-
   (3) Mappings are inlined on the term they are about, using the sssom-schema
   package's own slots, so the SSSOM file is a projection of this data, not a
   second source of truth.
-version: 0.5.0
+version: 0.6.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
 
 prefixes:
@@ -28,9 +28,13 @@ prefixes:
   oboInOwl: http://www.geneontology.org/formats/oboInOwl#
   owl: http://www.w3.org/2002/07/owl#
   pav: http://purl.org/pav/
+  rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
   rdfs: http://www.w3.org/2000/01/rdf-schema#
   IAO: http://purl.obolibrary.org/obo/IAO_
   sssom: https://w3id.org/sssom/
+  # rdf and skos are only used by the imported SSSOM schema's enums, but LinkML's
+  # Python generator needs them declared here.
+  skos: http://www.w3.org/2004/02/skos/core#
   # The SSSOM schema has no PURL for its YAML; this pins the release matching the
   # sssom-schema package version in pyproject.toml. Builds redirect this prefix to
   # the installed package with an importmap; tools without importmap support
@@ -54,6 +58,8 @@ classes:
         range: ReleaseMetadata
         required: true
         inlined: true
+        annotations:
+          owl.ignore: true
       terms:
         range: Term
         multivalued: true
@@ -100,6 +106,11 @@ classes:
 
   Term:
     description: A class/concept in the source, identified by its CURIE in Mondo's prefix space.
+    # OWL rendering (linkml-owl): each Term is an owl:Class. Each slot says how it is
+    # rendered: an `owl` axiom type (using the slot_uri), or an `owl.template` in OWL
+    # functional syntax for the structured ones.
+    annotations:
+      owl: Class
     attributes:
       id:
         identifier: true
@@ -110,52 +121,84 @@ classes:
       label:
         slot_uri: rdfs:label
         required: true
+        annotations:
+          owl: AnnotationAssertion
       definition:
         description: Textual definition.
         slot_uri: IAO:0000115
+        annotations:
+          owl: AnnotationAssertion
       synonyms:
         range: Synonym
         multivalued: true
         inlined_as_list: true
+        annotations:
+          owl.template: |-
+            {% for s in synonyms %}
+            AnnotationAssertion({% if s.synonym_type %}Annotation(oboInOwl:hasSynonymType {{ iri(s.synonym_type) }}) {% endif %}{{ iri(s.scope.meaning) }} {{ iri(id) }} "{{ s.text | replace('\\', '\\\\') | replace('"', '\\"') }}")
+            {% if s.synonym_type %}SubAnnotationPropertyOf({{ iri(s.synonym_type) }} oboInOwl:SynonymTypeProperty){% endif %}
+            {% endfor %}
       parents:
         description: >-
           Direct parents, as Mondo reads the source's hierarchy (for ORDO: its
           rdfs:subClassOf parents plus its part_of targets).
-        range: uriorcurie
-        pattern: *curie
+        range: Term
+        inlined: false
         multivalued: true
         slot_uri: rdfs:subClassOf
+        annotations:
+          owl: SubClassOf
       relationships:
         description: Existential relations (subClassOf R some T), e.g. disease to gene.
         range: Relationship
         multivalued: true
         inlined_as_list: true
+        annotations:
+          owl.template: |-
+            {% for r in relationships %}
+            SubClassOf({{ iri(id) }} ObjectSomeValuesFrom({{ iri(r.predicate) }} {{ iri(r.target) }}))
+            {% endfor %}
       deprecated:
         range: boolean
         slot_uri: owl:deprecated
+        annotations:
+          owl: AnnotationAssertion
       replaced_by:
         description: The single term the source says replaces this one.
-        range: uriorcurie
-        pattern: *curie
+        range: Term
+        inlined: false
         slot_uri: IAO:0100001
+        annotations:
+          owl: AnnotationAssertion
       consider:
         description: Terms the source suggests instead, without claiming replacement.
-        range: uriorcurie
-        pattern: *curie
+        range: Term
+        inlined: false
         multivalued: true
         slot_uri: oboInOwl:consider
+        annotations:
+          owl: AnnotationAssertion
       subsets:
-        description: Subsets the term belongs to, e.g. mondo#ordo_disorder.
+        description: Subsets the term belongs to, e.g. mondo_vocab:ordo_disorder.
         range: uriorcurie
         pattern: *curie
         multivalued: true
         slot_uri: oboInOwl:inSubset
+        annotations:
+          owl.template: |-
+            {% for s in subsets %}
+            AnnotationAssertion(oboInOwl:inSubset {{ iri(id) }} {{ iri(s) }})
+            {% endfor %}
       mappings:
         description: Every mapping the source asserts from this term.
         range: TermMapping
         multivalued: true
         inlined_as_list: true
-
+        annotations:
+          owl.template: |-
+            {% for m in mappings %}
+            AnnotationAssertion(Annotation(sssom:mapping_justification {{ iri(m.mapping_justification) }}){% if m.comment %} Annotation(rdfs:comment "{{ m.comment | replace('\\', '\\\\') | replace('"', '\\"') }}"){% endif %} {{ iri(m.predicate_id) }} {{ iri(id) }} {{ iri(m.object_id) }})
+            {% endfor %}
   Synonym:
     attributes:
       text:

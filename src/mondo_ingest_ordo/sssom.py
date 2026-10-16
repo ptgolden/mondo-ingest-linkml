@@ -44,7 +44,7 @@ def project(release: dict, converter: curies.Converter, metadata: dict) -> tuple
         for row in rows
         for value in (row["subject_id"], row["predicate_id"], row["object_id"], row["mapping_justification"])
     } | {converter.parse_curie(v, strict=True).prefix for slot in ID_SLOTS for v in header.get(slot, [])}
-    header["curie_map"] = {p: converter.prefix_map[p] for p in sorted(used)}
+    header["curie_map"] = {p: converter.bimap[p] for p in sorted(used)}
 
     meta = release["metadata"]
     header["mapping_set_version"] = meta["source_version"]

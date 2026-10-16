@@ -1,0 +1,21 @@
+# One row per in-scope class, with every single-valued Term slot. -> Term
+#
+# - label: STR + DISTINCT collapses "X" and "X"@en. Two different labels give two
+#   rows, which the assembler rejects.
+# - deprecated: owl:deprecated true.
+# - definition: IAO:0000115.
+# - replaced_by: IAO:0100001 (term replaced by), as an IRI.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX obo: <http://purl.obolibrary.org/obo/>
+SELECT DISTINCT ?id ?label ?deprecated ?definition ?replaced_by
+WHERE {
+  ?id <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?in ;
+      rdfs:label ?l .
+  BIND(STR(?l) AS ?label)
+  OPTIONAL { ?id owl:deprecated ?d FILTER(STR(?d) = "true") }
+  BIND(IF(BOUND(?d), true, ?unbound) AS ?deprecated)
+  OPTIONAL { ?id obo:IAO_0000115 ?def BIND(STR(?def) AS ?definition) }
+  OPTIONAL { ?id obo:IAO_0100001 ?replaced_by FILTER(isIRI(?replaced_by)) }
+}
+ORDER BY ?id

@@ -21,7 +21,7 @@ WHERE {
   ?gene rdfs:subClassOf [ owl:onProperty ?ordoRel ; owl:someValuesFrom ?id ] ;
         oio:hasDbXref ?x ;
         rdfs:subClassOf+ Orphanet:C010 .
-  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+  ?id <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?in ;
       rdfs:label ?diseaseLabel ;
       rdfs:subClassOf+ Orphanet:C001 .
   # ORDO's gene xrefs are "HGNC:N" strings, typed xsd:anyURI to mark them as identifiers.

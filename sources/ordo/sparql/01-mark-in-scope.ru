@@ -7,7 +7,7 @@
 prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 prefix oio: <http://www.geneontology.org/formats/oboInOwl#>
 
-INSERT { ?term <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> true }
+INSERT { ?term <https://w3id.org/monarch-initiative/mondo-source/in_scope> true }
 WHERE {
   VALUES ?root {
     <http://www.orpha.net/ORDO/Orphanet_557493>

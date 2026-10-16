@@ -1,0 +1,9 @@
+# -> Term.consider: oboInOwl:consider, as an IRI.
+PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
+SELECT DISTINCT ?id ?consider
+WHERE {
+  ?id <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?in ;
+      oio:consider ?consider .
+  FILTER(isIRI(?consider))
+}
+ORDER BY ?id ?consider

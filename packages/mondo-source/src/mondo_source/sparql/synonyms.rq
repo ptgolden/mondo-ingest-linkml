@@ -1,0 +1,46 @@
+# -> Term.synonyms:
+# - the source's oboInOwl synonyms, with their scope and any hasSynonymType on the
+#   synonym's axiom;
+# - each non-deprecated term's label as an EXACT synonym, typed
+#   mondo:GENERATED_FROM_LABEL (mondo-ingest's exact_syn_from_label.ru);
+# - for labels and exact synonyms ending in ")" or "]", the lowercased text with the
+#   final bracketed part removed, as an EXACT synonym typed mondo:GENERATED
+#   (mondo-ingest's fix-labels-with-brackets.ru), e.g. "Leprosy [Hansen disease]"
+#   gives "leprosy".
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX oio: <http://www.geneontology.org/formats/oboInOwl#>
+PREFIX mondo: <http://purl.obolibrary.org/obo/mondo#>
+SELECT DISTINCT ?id ?text ?scope ?synonym_type
+WHERE {
+  ?id <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?in .
+  {
+    VALUES (?property ?scope) {
+      (oio:hasExactSynonym "EXACT")
+      (oio:hasRelatedSynonym "RELATED")
+      (oio:hasBroadSynonym "BROAD")
+      (oio:hasNarrowSynonym "NARROW")
+    }
+    ?id ?property ?s .
+    OPTIONAL {
+      ?ax owl:annotatedSource ?id ;
+          owl:annotatedProperty ?property ;
+          owl:annotatedTarget ?s ;
+          oio:hasSynonymType ?synonym_type .
+    }
+    BIND(STR(?s) AS ?text)
+  } UNION {
+    ?id rdfs:label ?l .
+    FILTER NOT EXISTS { ?id owl:deprecated ?d FILTER(STR(?d) = "true") }
+    BIND(STR(?l) AS ?text)
+    BIND("EXACT" AS ?scope)
+    BIND(mondo:GENERATED_FROM_LABEL AS ?synonym_type)
+  } UNION {
+    { ?id rdfs:label ?v } UNION { ?id oio:hasExactSynonym ?v }
+    FILTER(REGEX(STR(?v), "[\\])]$"))
+    BIND(REPLACE(LCASE(STR(?v)), " [\\[(].*[)\\]]$", "") AS ?text)
+    BIND("EXACT" AS ?scope)
+    BIND(mondo:GENERATED AS ?synonym_type)
+  }
+}
+ORDER BY ?id ?text ?scope ?synonym_type

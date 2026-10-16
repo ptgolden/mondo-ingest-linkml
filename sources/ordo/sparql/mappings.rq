@@ -23,7 +23,7 @@ PREFIX semapv: <https://w3id.org/semapv/vocab/>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT DISTINCT ?id ?predicate_id ?object_id ?mapping_justification ?comment
 WHERE {
-  ?id <https://w3id.org/monarch-initiative/mondo-ingest-ordo/in_scope> ?in ;
+  ?id <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?in ;
       oio:hasDbXref ?x .
   ?ax owl:annotatedSource ?id ;
       owl:annotatedProperty oio:hasDbXref ;

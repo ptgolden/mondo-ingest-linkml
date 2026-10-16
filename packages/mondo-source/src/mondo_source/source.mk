@@ -17,15 +17,16 @@
 #   MONDO_SOURCE    this package's data directory (`mondo-source data-dir`)
 #
 # <source>.yaml is built in-process: the source is loaded into Oxigraph and queried with
-# the SPARQL in the source's sparql/. linkml-owl renders <source>.owl from it; ROBOT
-# builds the mirror.
+# the SPARQL in mondo-source's sparql/ and the source's own sparql/, whose files
+# replace ones of the same name. linkml-owl renders <source>.owl from it; ROBOT builds
+# the mirror.
 
 COMPONENT_IRI := http://purl.obolibrary.org/obo/mondo/sources/$(SOURCE).owl
 
 SCHEMA := $(MONDO_SOURCE)/schema/mondo_source.yaml
 SCHEMA_VERSION := $(shell sed -n 's/^version: *//p' $(SCHEMA))
 PREFIXES := $(MONDO_SOURCE)/prefixes.yaml
-SPARQL := sparql
+SPARQL := $(MONDO_SOURCE)/sparql sparql
 SPARQL_FILES = $(wildcard $(addsuffix /*.ru,$(SPARQL)) $(addsuffix /*.rq,$(SPARQL)))
 MODELS := $(MONDO_SOURCE)/datamodel.py
 PYTHON_SRC := $(filter-out $(MODELS),$(wildcard $(MONDO_SOURCE)/*.py))

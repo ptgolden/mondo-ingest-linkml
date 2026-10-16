@@ -1,0 +1,10 @@
+# -> Term.parents: named superclasses that are themselves in scope, so every parent
+# is a term of the release.
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT DISTINCT ?id ?parents
+WHERE {
+  ?id <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?in ;
+      rdfs:subClassOf ?parents .
+  ?parents <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?pin .
+}
+ORDER BY ?id ?parents

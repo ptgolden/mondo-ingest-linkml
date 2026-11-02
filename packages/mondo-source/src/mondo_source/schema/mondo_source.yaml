@@ -7,8 +7,8 @@ description: >-
   synonyms as EXACT, synonyms generated from labels). The OWL and SSSOM files a
   source repo publishes are renderings of this.
 
-  EXPERIMENT: in the target architecture this file lives only in mondo-ingest and
-  source repos fetch it by PURL. It is here so the ORDO experiment is self-contained.
+  EXPERIMENT: it ships with the mondo-source package, which every source depends on.
+  In the target architecture it may instead live in mondo-ingest, fetched by PURL.
 
   Design rules:
   (1) Data Mondo's interpretation creates, as opposed to translates, says so: e.g.

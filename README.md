@@ -1,78 +1,94 @@
-# mondo-ingest-ordo (experiment)
+# mondo-source (experiment)
 
-An initial experiment for [mondo-ingest#925](https://github.com/monarch-initiative/mondo-ingest/issues/925)
-("make the alignment system LinkML-first"), using Orphanet's ORDO as the test case.
+An experiment for [mondo-ingest#925](https://github.com/monarch-initiative/mondo-ingest/issues/925)
+("make the alignment system LinkML-first"), with two sources: Orphanet's ORDO and
+ICD-10 (WHO).
 
 The question: what does a source repo look like if its one reviewable artifact is a LinkML
 YAML of **what Mondo takes in from the source**, with everything mondo-ingest needs rendered
 from that YAML, so mondo-ingest only downloads files (as mondo-ingest#906 does for
-ICD10WHO)? And can it keep well-defined semantics (OWL parsed by ROBOT, transformations in
-SPARQL) with as little bespoke Python as possible?
+ICD10WHO)? Can it keep well-defined semantics (OWL in, transformations in SPARQL) with as
+little bespoke Python as possible? And how much of it is shared between sources?
 
 An earlier design, which published a faithful YAML of the *whole* source and applied Mondo's
 policy afterwards in OWL, is preserved at tag `original-yaml-approach`; its message explains
 why it was replaced.
 
-This is not production code. Things here that would live in mondo-ingest in the target
-architecture (the schema, the prefix map, the generic Python) are kept here only so the
-experiment is self-contained.
+This is not production code.
+
+## Layout
+
+A uv workspace, laid out as the eventual repos would be:
+
+| Directory | What it is | Would become |
+|---|---|---|
+| `packages/mondo-source` | The shared package: the schema, the prefix map, the shared SPARQL, the Python (one `mondo-source` CLI), the make rules (`source.mk`), and files copied from mondo-ingest | A released package, or part of mondo-ingest |
+| `sources/ordo` | ORDO's own: its Makefile settings, SPARQL and SSSOM metadata. [README](sources/ordo/README.md) | ORDO's source repo |
+| `sources/icd10who` | ICD10WHO's own, likewise. [README](sources/icd10who/README.md) | Part of mondo-ingest-icd10who |
+
+A source directory holds no Python. ORDO's is 7 SPARQL files; ICD10WHO's is 2.
 
 ## Running it
 
 Needs `uv`, `robot` (tested with 1.9.7), `curl` and GNU Make 4.3+. `make bundle` also needs
 Docker, for the `obolibrary/odkfull:v1.6` image (ODK's ROBOT plugins and semsql).
 
+In a source directory (`sources/ordo`, `sources/icd10who`):
+
 ```sh
-make            # download ORDO if needed; build ordo.yaml and its renderings
+make            # download the source if needed; build <source>.yaml and its renderings
 make bundle     # also the files that need the ODK image (mirror, semsql db)
-make validate   # linkml-validate ordo.yaml; sssom validate ordo.sssom.tsv
-make refresh    # re-download ORDO, then build
+make validate   # linkml-validate <source>.yaml; sssom validate <source>.sssom.tsv
+make refresh    # re-download the source, then build
 ```
 
-Outputs, in `release/`:
+Outputs, in the source's `release/`:
 
 | File | What it is | Role |
 |---|---|---|
-| `ordo.yaml` | ORDO's in-scope terms as Mondo reads them, each carrying its SSSOM `mappings`, per `schema/mondo_source.yaml` | **The target**: reviewed by diffing releases |
-| `ordo.metadata.yaml` | The `metadata` block: source version, schema version, generated_at, … | **Target**: the freshness contract |
-| `ordo.sssom.tsv` | The terms' mappings, flattened, with mondo-ingest's header | Rendering of `ordo.yaml` |
-| `ordo.owl` | `ordo.yaml` as OWL, built by ROBOT from templates | Rendering, transitional until mondo-ingest reads YAML |
-| `component_signature-ordo.tsv`, `ordo-metrics.json` | As mondo-ingest builds them | Renderings |
-| `ordo.db`, `mirror-ordo.owl`, `mirror_signature-ordo.tsv` | From `make bundle`; the mirror is ORDO itself, ODK-normalised | For mondo-ingest's existing checks |
+| `<source>.yaml` | The source's in-scope terms as Mondo reads them, each carrying its SSSOM `mappings`, per the schema | **The target**: reviewed by diffing releases |
+| `<source>.metadata.yaml` | The `metadata` block: source version, schema version, generated_at, … | **Target**: the freshness contract |
+| `<source>.sssom.tsv` | The terms' mappings, flattened, with mondo-ingest's header | Rendering of `<source>.yaml` |
+| `<source>.owl` | `<source>.yaml` as OWL, rendered by linkml-owl | Rendering, transitional until mondo-ingest reads YAML |
+| `component_signature-<source>.tsv`, `<source>-metrics.json` | As mondo-ingest builds them | Renderings |
+| `<source>.db`, `mirror-<source>.owl`, `mirror_signature-<source>.tsv` | From `make bundle`; the mirror is the source itself, ODK-normalised | For mondo-ingest's existing checks |
 
 The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOADS`).
 
 ## How it works
 
 ```
-ORDO OWL --assemble.py: load into Oxigraph, 2 SPARQL updates, 7 SELECTs--> ordo.yaml
-ordo.yaml --sssom.py--> ordo.sssom.tsv
-ordo.yaml --render_owl.py (linkml-owl, from the schema's owl annotations)--> robot annotate (header) --> ordo.owl
+source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs--> <source>.yaml
+<source>.yaml --mondo-source sssom--> <source>.sssom.tsv
+<source>.yaml --mondo-source render-owl (linkml-owl)--> robot annotate (header) --> <source>.owl
 ```
 
-- **Mondo's reading of ORDO happens in SPARQL** (`sparql/`), run in-process by Oxigraph.
-  - Two updates run first:
-    - `00-part-of-as-parents.ru` is mondo-ingest's own query, verbatim: Mondo reads ORDO's
-      `part_of` as hierarchy;
-    - `01-mark-in-scope.ru` marks the classes Mondo takes in.
-  - Each SELECT then fills one part of the release, by its name:
+- **Mondo's reading of a source happens in SPARQL**, run in-process by Oxigraph, from two
+  directories: mondo-source's `sparql/` and the source's own `sparql/`. A source file
+  replaces a shared one of the same name.
+  - Updates (`*.ru`) run first, in name order. A source's updates do two things:
+    - mark the classes Mondo takes in, with mondo-source's `in_scope` property;
+    - rewrite anything Mondo reads differently from OBO conventions into them (ORDO's
+      `part_of` as parents, its `alternative_term` as exact synonyms, …).
+  - Each SELECT (`*.rq`) then fills one part of the release, by its name:
     - `terms.rq` returns one row per term with all its single-valued slots;
     - every other `<slot>.rq` fills a multivalued slot (`synonyms.rq` → `Term.synonyms`);
     - a row with columns beyond `?id ?<slot>` is a nested object.
+  - The shared queries read OBO-in-OWL: `terms`, `synonyms`, `parents`, `consider` and
+    `metadata` ([sparql/README.md](packages/mondo-source/src/mondo_source/sparql/README.md)).
+    Sources add their own for what has no OBO convention (ORDO's mappings,
+    relationships, subsets), or replace a shared one (ICD10WHO's metadata).
+  - Mondo's own additions are shared: `synonyms.rq` generates the label synonyms
+    (`mondo:GENERATED_FROM_LABEL`) and the bracket-stripped ones (`mondo:GENERATED`) for
+    every source, so the YAML shows what Mondo added rather than the source said.
   - Each query ends in an `ORDER BY`, which is what makes the output deterministic.
-  - Queries do no prefix handling. They return IRIs as IRIs, and identifiers ORDO only
-    has as strings (its xrefs) as literals typed `xsd:anyURI`.
-  - Each query documents which mondo-ingest step it reproduces: `exact_syn_from_label.ru`,
-    `fix-labels-with-brackets.ru`, `ordo-construct-d2g.ru`, `ordo-construct-subsets.ru`,
-    `fix_deprecated.ru`, the property map and the relevant-signature query.
-- **Created data says so.** Synonyms copied from labels are typed
-  `mondo:GENERATED_FROM_LABEL`, and bracket-stripped ones `mondo:GENERATED`, so the YAML
-  shows what Mondo added rather than ORDO said.
-- **The Python leans on libraries.**
-  - `assemble.py` (about 70 lines) groups query rows by term and hands them over:
-    - identifiers to `curies`, with `config/prefixes.yaml` as an extended prefix map.
-      IRIs are compressed, and `anyURI` literals are standardised, so ORDO's spellings
-      (`ICD-10`, `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`;
+  - Queries do no prefix handling. They return IRIs as IRIs, and identifiers a source only
+    has as strings (ORDO's xrefs) as literals typed `xsd:anyURI`.
+- **The Python leans on libraries**, and none of it is source-specific.
+  - `assemble.py` (about 80 lines) groups query rows by term and hands them over:
+    - identifiers to `curies`, with `prefixes.yaml` as an extended prefix map. IRIs are
+      compressed, and `anyURI` literals are standardised, so ORDO's spellings (`ICD-10`,
+      `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`;
     - everything else to the Pydantic models generated from the schema (`gen-pydantic`,
       into the package at build time, not committed). Building them coerces types and
       checks required slots, CURIE patterns and unknown fields.
@@ -80,96 +96,36 @@ ordo.yaml --render_owl.py (linkml-owl, from the schema's owl annotations)--> rob
     Its one check of its own: a term with two values for a single-valued slot fails,
     because keeping either would silently drop the other.
   - `sssom.py` flattens the mappings.
-  - `render_owl.py` renders `ordo.yaml` as OWL with linkml-owl, which reads `owl`
-    annotations in the schema: an axiom type per slot, and OWL functional-syntax
-    templates for synonyms, relationships, mappings and subsets. Its only additions to
-    linkml-owl are adding the release's prefixes and an `iri()` template function (for
-    ICD-10 codes like `A98.5+`, which OWL functional syntax can't abbreviate).
+  - `render_owl.py` renders the YAML as OWL with linkml-owl, which reads `owl` annotations
+    in the schema: an axiom type per slot, and OWL functional-syntax templates for
+    synonyms, relationships, mappings and subsets. Its only additions to linkml-owl are
+    adding the release's prefixes and an `iri()` template function (for ICD-10 codes like
+    `A98.5+`, which OWL functional syntax can't abbreviate).
   - `yamlio.py` writes YAML that reads back the same under YAML 1.1 and 1.2.
 
-  None of them is ORDO-specific. The CLIs use Typer, and `uv run pyright` is clean.
+  The CLIs use Typer, and `uv run pyright` is clean.
 - **Fail hard.** Assembly stops on:
   - a term with conflicting single-valued slots;
   - an identifier with no prefix in the map;
   - anything the models reject.
 
-## Verified against mondo-ingest
+## Adding a source
 
-Built from ORDO 4.7 and compared with the `ordo.owl` and `ordo.sssom.tsv` in mondo-ingest
-release v2026-01-24 (also built from 4.7), with both sides queried by ROBOT:
+A directory under `sources/` with:
+- a `pyproject.toml` depending on `mondo-source`, and a `Makefile` setting `SOURCE`,
+  `SOURCE_URL`, `SOURCE_FILE` (RDF/XML as `.owl`, or Turtle) and `SSSOM_METADATA`, then
+  including `source.mk`;
+- `sparql/` with at least a scope update, plus whatever rewrites the source into OBO
+  conventions and whatever queries it needs beyond the shared ones;
+- its SSSOM metadata;
+- its prefixes, added to the shared `prefixes.yaml`.
 
-| Facet | Result |
-|---|---|
-| Classes (15,370), parents (36,729), subsets (18,484), deprecated (1,468) | Identical |
-| Synonyms on classes (24,759) | Identical |
-| Labels and definitions on classes | Identical |
-| Mappings (45,620) | Identical, except as fixed below; SSSOM rows identical, plus 6 |
-| Gene relations | Identical, except the loss-of-function fix: 1,212 relabelled, plus 11 pairs where ORDO states both gain and loss of function, which mondo-ingest merges |
+## Findings about the approach
 
-mondo-ingest's component also carries things that are deliberately dropped:
-- labels and synonyms on 4,579 gene classes it doesn't contain;
-- labels, generated synonyms and definitions on *properties* (e.g. `part_of`).
-
-The 4.7 build needs one comparison-only workaround, for six 4.7 classes with case-duplicate
-labels, which the pipeline otherwise rejects.
-
-## Fixes and notes relative to mondo-ingest
-
-These are the seven bugs in [MONDO-INGEST-BUGS.md](MONDO-INGEST-BUGS.md), all fixed here:
-
-1. No dangling gene annotations.
-2. Mapping objects are IRIs, not string literals.
-3. Mapping justifications (`ManualMappingCuration`), ICD code-relation comments and the
-   `replaced_by` / `consider` pointers are kept.
-4. Loss-of-function relations use `RO:0004002`.
-5. Subset IRIs come from lowercased labels, so 4.9 keeps Mondo's subset names.
-6. The six NBSP ICD-11 mappings are kept.
-7. `ordo.sssom.tsv` passes `sssom validate`.
-
-Kept for compatibility, though probably wrong:
-- ICD-11 MMS codes stay under `icd11.foundation`.
-- The `.db` turns ICD-10 objects into `ICD10WHO2010:` and leaves MedDRA ones as full IRIs.
-  That's because mondo-ingest's `prefixes.csv` and its SSSOM metadata disagree. Previously
-  the `.db` held raw literals, so mondo-ingest code reading mappings from it needs checking
-  before switching over.
-
-ORDO content mondo-ingest never took in, and which isn't taken in here either:
-- free-text obsoletion reasons;
-- definition citations (always just "Orphanet");
-- ND-qualified and unqualified xrefs;
-- gene classes and their xrefs.
-
-## Findings
-
-### About ORDO
-
-- **The old orphadata.org URL is frozen at 4.7.** The current release is 4.9 (June 2026),
-  at `https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_orphanet.owl`, which
-  mondo-ingest's main branch already uses. Its latest release, v2026-01-24, was built from
-  4.7.
-- **4.9 changed shape compared with 4.7.** It adds `owl:deprecated` and a new `Orphanet_C059`
-  website-link property, and capitalises its category labels.
-  `fix_complex_reification_ordo.ru` in mondo-ingest targets a layout 4.7 already didn't use.
-  Source format drift breaks SPARQL silently.
-- **ORDO's mapping qualifier packs two dimensions into one string:** precision
-  (E/NTBT/BTNT/ND) and, for ICD, a code-relation type (Specific code / Attributed code /
-  Index term / Inclusion term). The precision becomes `predicate_id` and the code relation
-  the mapping's `comment`.
-- **Data quality:**
-  - Ten ICD-11 xrefs contain non-breaking spaces.
-  - 12 classes have both `"X"` and `"X"@en` labels.
-  - ORDO's gene xrefs to ClinVar and Genatlas are gene symbols, and its Reactome xrefs are
-    UniProt accessions.
-  - 4.7 has 145 empty gene xrefs and six case-duplicate labels.
-- **#900-style check.** Of Mondo's 9,785 exactMatch→Orphanet mappings (local clone,
-  2026-08-04), against ORDO 4.9:
-  - 216 point at deprecated terms with `consider` targets;
-  - 31 at deprecated terms with a `replaced_by` target;
-  - 9 at deprecated terms with no pointer;
-  - 18 at IDs that aren't ORDO classes.
-
-### About the approach
-
+- **A second source cost two SPARQL files.** ICD10WHO needed a scope update and a
+  metadata query; everything else it uses is shared, and its output matches both
+  mondo-ingest's last component and mondo-ingest-icd10who's YAML (see its README).
+  Moving ORDO onto the shared queries changed none of its 11,668 terms.
 - **Timings (ORDO 4.9):**
   - building `ordo.yaml` takes about 15 s (Oxigraph load, updates, queries, models);
   - `make all` takes about 6.5 minutes with ORDO already downloaded, about 5 of them
@@ -200,14 +156,13 @@ ORDO content mondo-ingest never took in, and which isn't taken in here either:
 
 ## Open questions
 
-- **Typology in `parents`.** `parents` mixes ORDO's typology classes (Disease, Disorder,
-  …) with its classification groups. That's mondo-ingest's reading, reproduced as-is.
 - **Steps that need all sources at once.** Nico's concern on #906 still stands: some
   mondo-ingest steps need every source together, and those can't move into a single
   source repo.
-- **Switching mondo-ingest over.** It would download this bundle the way it does
-  ICD10WHO's (`ORDO_RELEASE_BASE` plus `wget` targets).
 - **An audit report.** A report of what each Mondo-interpretation step did (e.g. counts of
   generated synonyms, promoted `part_of` edges) could replace a second, faithful YAML.
-- **The non-OWL path.** It isn't exercised here. OMIM would be the next test.
+- **The non-RDF path.** It isn't exercised here, and may not need to be: every source
+  mondo-ingest has (DOID, ICD10CM, ICD10WHO, ICD11, NCIT, OMIM, ORDO) reaches it as RDF,
+  the non-RDF ones converted in their own repos. A non-RDF adapter would only have to
+  produce what the queries do: rows keyed by term ID, per slot.
 - **`mapping_set_id` and PURLs** are placeholders until the PURL scheme is decided.

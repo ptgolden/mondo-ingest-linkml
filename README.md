@@ -30,14 +30,14 @@ A source directory holds no Python. ORDO's is 7 SPARQL files; ICD10WHO's is 2.
 
 ## Running it
 
-Needs `uv`, `robot` (tested with 1.9.7), `curl` and GNU Make 4.3+. `make bundle` also needs
-Docker, for the `obolibrary/odkfull:v1.6` image (ODK's ROBOT plugins and semsql).
+`make` needs only `uv`, `curl` and GNU Make 4.3+: no ROBOT, no Java. `make bundle` also
+needs Docker, for the `obolibrary/odkfull:v1.6` image (semsql, and ROBOT's metrics).
 
 In a source directory (`sources/ordo`, `sources/icd10who`):
 
 ```sh
 make            # download the source if needed; build <source>.yaml and its renderings
-make bundle     # also the files that need the ODK image (mirror, semsql db)
+make bundle     # also the mirror, its signature, and the semsql db and metrics (Docker)
 make validate   # linkml-validate <source>.yaml; sssom validate <source>.sssom.tsv
 make refresh    # re-download the source, then build
 ```
@@ -50,8 +50,9 @@ Outputs, in the source's `release/`:
 | `<source>.metadata.yaml` | The `metadata` block: source version, schema version, generated_at, … | **Target**: the freshness contract |
 | `<source>.sssom.tsv` | The terms' mappings, flattened, with mondo-ingest's header | Rendering of `<source>.yaml` |
 | `<source>.owl` | `<source>.yaml` as OWL, rendered by linkml-owl | Rendering, transitional until mondo-ingest reads YAML |
-| `component_signature-<source>.tsv`, `<source>-metrics.json` | As mondo-ingest builds them | Renderings |
-| `<source>.db`, `mirror-<source>.owl`, `mirror_signature-<source>.tsv` | From `make bundle`; the mirror is the source itself, ODK-normalised | For mondo-ingest's existing checks |
+| `component_signature-<source>.tsv` | As mondo-ingest builds it, rows sorted by code point | Rendering |
+| `mirror-<source>.owl`, `mirror_signature-<source>.tsv` | From `make bundle`; the mirror is the source as downloaded, as RDF/XML | For mondo-ingest's existing checks |
+| `<source>.db`, `<source>-metrics.json` | From `make bundle`, as mondo-ingest builds them | For mondo-ingest's existing checks |
 
 The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOADS`).
 
@@ -60,8 +61,23 @@ The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOA
 ```
 source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs--> <source>.yaml
 <source>.yaml --mondo-source sssom--> <source>.sssom.tsv
-<source>.yaml --mondo-source render-owl (linkml-owl)--> robot annotate (header) --> <source>.owl
+<source>.yaml --mondo-source render-owl (linkml-owl, plus header and declarations)--> <source>.owl
 ```
+
+- **No ROBOT outside the ODK image.** Every source is loaded into an on-disk Oxigraph
+  store (`rdfstore.py`), so memory stays bounded however big the source is: all of
+  NCIT (812 MB, 10.8M triples) loads with a 2.2 GB peak and queries in about 0.5 GB.
+  For a small source this costs time (ORDO's extraction: about 19 s instead of 5 s).
+  - The signature reports are `mondo-source select` over the same kind of store.
+  - `render-owl` writes the ontology header and annotation property declarations
+    itself, on linkml-owl's py-horned-owl document. The result is the same graph
+    `robot annotate` made, apart from the build date.
+  - The mirror is the download, converted to RDF/XML if it isn't already. mondo-ingest
+    made it with `robot merge` + `odk:normalize --add-source true`, which loads the whole
+    source into the OWL API to add one ontology annotation that nothing in mondo-ingest
+    reads; its readers use `owl:versionIRI`/`owl:versionInfo`, which the download has.
+  - Only `robot measure` remains, inside the ODK image for `make bundle`: its
+    expressivity and OWL 2 profile metrics need the OWL API.
 
 - **Mondo's reading of a source happens in SPARQL**, run in-process by Oxigraph, from two
   directories: mondo-source's `sparql/` and the source's own `sparql/`. A source file
@@ -126,15 +142,17 @@ A directory under `sources/` with:
   metadata query; everything else it uses is shared, and its output matches both
   mondo-ingest's last component and mondo-ingest-icd10who's YAML (see its README).
   Moving ORDO onto the shared queries changed none of its 11,668 terms.
-- **Timings (ORDO 4.9):**
-  - building `ordo.yaml` takes about 15 s (Oxigraph load, updates, queries, models);
-  - `make all` takes about 6.5 minutes with ORDO already downloaded, about 5 of them
+- **Timings (ORDO 4.9, linkml-owl 0.5.0, source already downloaded):**
+  - building `ordo.yaml` takes about 35 s (on-disk Oxigraph load, updates, queries,
+    models, YAML);
+  - `make all bundle` takes about 7 minutes (419 s, 1.3 GB peak), about 5 of them
     linkml-owl rendering `ordo.owl`. Three fixes to linkml-owl (memoising slot lookups,
-    compiling each template once, lazy logging arguments) bring that render from about
-    300 s to about 100 s with identical output; the ROBOT-template rendering it replaced
-    took about 30 s;
-  - `make bundle` adds about 1.5 minutes;
-  - `make validate` takes about 1.5 minutes, almost all YAML parsing.
+    compiling each template once, lazy logging arguments) bring that render from 290 s
+    to 63 s with identical output; the ROBOT-template rendering it replaced took about
+    30 s;
+  - for ICD10WHO, `make all` takes 148 s (the render is 114 s of it) and `make bundle`
+    35 s more;
+  - `make validate` takes about 1.5 minutes for ORDO, almost all YAML parsing.
 - **YAML is a cost and a correctness hazard, and stays because curators read it.**
   - The faithful 25 MB YAML of the original approach took 10.8 s to parse with PyYAML's C
     loader, 58.8 s with ruamel (YAML 1.2), and 0.23 s as JSON.

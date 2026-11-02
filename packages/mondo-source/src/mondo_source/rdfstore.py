@@ -28,3 +28,20 @@ def loaded(source: Path) -> Iterator[ox.Store]:
         store = ox.Store(directory)
         store.bulk_load(path=str(source), format=rdf_format(source))
         yield store
+
+
+def select_tsv(source: Path, query: Path, output: Path):
+    """A SELECT over the source, as SPARQL TSV with its rows sorted (mondo-ingest's
+    signature reports; formerly `robot query`)."""
+    with loaded(source) as store:
+        solutions = store.query(query.read_text())
+        assert isinstance(solutions, ox.QuerySolutions), f"{query} is not a SELECT query"
+        tsv = solutions.serialize(format=ox.QueryResultsFormat.TSV)
+    assert tsv is not None
+    header, *rows = tsv.decode().splitlines()
+    output.write_text("\n".join([header, *sorted(rows)]) + "\n")
+
+
+def to_rdfxml(source: Path, output: Path):
+    """The source as RDF/XML, streamed triple by triple, so any size fits in memory."""
+    ox.serialize(ox.parse(path=str(source), format=rdf_format(source)), output=str(output), format=ox.RdfFormat.RDF_XML)

@@ -2,9 +2,9 @@
 #
 #   make            <source>.yaml (what Mondo takes in from the source) and what is
 #                   rendered from it: <source>.sssom.tsv, <source>.owl, component
-#                   signature, metrics
+#                   signature. Needs only uv.
 #   make bundle     everything mondo-ingest downloads for the source; adds the mirror,
-#                   its signature and the semsql db, which need Docker
+#                   its signature, and the semsql db and metrics, which need Docker
 #   make validate   validate <source>.yaml against the schema and <source>.sssom.tsv as SSSOM
 #   make refresh    re-download the source, then build
 #
@@ -18,8 +18,9 @@
 #
 # <source>.yaml is built in-process: the source is loaded into Oxigraph and queried with
 # the SPARQL in mondo-source's sparql/ and the source's own sparql/, whose files
-# replace ones of the same name. linkml-owl renders <source>.owl from it, header
-# included; ROBOT builds the mirror.
+# replace ones of the same name. linkml-owl renders <source>.owl from it. Oxigraph's
+# store is on disk, so even NCIT fits in a couple of GB. ROBOT is used only inside the
+# ODK image, for the metrics.
 
 COMPONENT_IRI := http://purl.obolibrary.org/obo/mondo/sources/$(SOURCE).owl
 
@@ -40,8 +41,9 @@ GENERATED_BY = $(shell git remote get-url origin 2>/dev/null || echo $(CURDIR))@
 
 # Named as mondo-ingest's targets expect (cf. ICD10WHO_DOWNLOADS in mondo-ingest.Makefile).
 CORE := $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml $(RELEASE)/$(SOURCE).sssom.tsv \
-	$(RELEASE)/$(SOURCE).owl $(RELEASE)/component_signature-$(SOURCE).tsv $(RELEASE)/$(SOURCE)-metrics.json
-BUNDLE := $(CORE) $(RELEASE)/$(SOURCE).db $(RELEASE)/mirror-$(SOURCE).owl $(RELEASE)/mirror_signature-$(SOURCE).tsv
+	$(RELEASE)/$(SOURCE).owl $(RELEASE)/component_signature-$(SOURCE).tsv
+BUNDLE := $(CORE) $(RELEASE)/mirror-$(SOURCE).owl $(RELEASE)/mirror_signature-$(SOURCE).tsv \
+	$(RELEASE)/$(SOURCE).db $(RELEASE)/$(SOURCE)-metrics.json
 
 .PHONY: all bundle validate refresh clean
 all: $(CORE)
@@ -101,18 +103,26 @@ $(RELEASE)/$(SOURCE).owl: $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadat
 		--version-iri http://purl.obolibrary.org/obo/mondo/sources/$(TODAY)/$(SOURCE).owl \
 		--output $@
 
+# mondo-ingest's signature reports: classes.sparql, rows sorted by code point (so the
+# order no longer depends on the machine's locale, as with `sort`).
 $(RELEASE)/component_signature-$(SOURCE).tsv: $(RELEASE)/$(SOURCE).owl $(COMPAT)/classes.sparql
-	robot query -i $< --query $(COMPAT)/classes.sparql $@
-	(head -n 1 $@ && tail -n +2 $@ | sort) > $@-temp
-	mv $@-temp $@
+	uv run mondo-source select $< --query $(COMPAT)/classes.sparql --output $@
 
-$(RELEASE)/$(SOURCE)-metrics.json: $(RELEASE)/$(SOURCE).owl
-	robot measure --prefix 'OMIM: http://omim.org/entry/' \
-		--prefix 'CHR: http://purl.obolibrary.org/obo/CHR_' \
-		--prefix 'UMLS: http://linkedlifedata.com/resource/umls/id/' \
-		--prefix 'HGNC: https://www.genenames.org/data/gene-symbol-report/\#!/hgnc_id/' \
-		--prefix 'biolink: https://w3id.org/biolink/vocab/' \
-		-i $< --format json --metrics extended --output $@
+# The mirror is the source as downloaded, as RDF/XML. mondo-ingest made it with
+# `robot merge` + `odk:normalize --add-source true`, which loads the whole source into
+# the OWL API (more memory than NCIT allows on a laptop) to add one ontology annotation
+# nothing in mondo-ingest reads; its readers use owl:versionIRI/versionInfo, which the
+# download has.
+$(RELEASE)/mirror-$(SOURCE).owl: $(SOURCE_FILE)
+	mkdir -p $(RELEASE)
+ifeq ($(suffix $(SOURCE_FILE)),.owl)
+	cp $< $@
+else
+	uv run mondo-source rdfxml $< --output $@
+endif
+
+$(RELEASE)/mirror_signature-$(SOURCE).tsv: $(RELEASE)/mirror-$(SOURCE).owl $(COMPAT)/classes.sparql
+	uv run mondo-source select $< --query $(COMPAT)/classes.sparql --output $@
 
 # ── Files that need the ODK image ──────────────────────────────────────────────
 # Paths are mounted at the same absolute location so TMP/RELEASE overrides work.
@@ -121,14 +131,15 @@ ODK = docker run --rm -u $$(id -u):$$(id -g) -e ROBOT_PLUGINS_DIRECTORY=/tools/r
 	$(foreach d,$(sort $(CURDIR) $(abspath $(TMP)) $(abspath $(RELEASE)) $(MONDO_SOURCE)),-v $(d):$(d)) \
 	-w $(CURDIR) $(ODK_IMAGE)
 
-# mondo-ingest's mirror recipe, on the downloaded source.
-$(RELEASE)/mirror-$(SOURCE).owl: $(SOURCE_FILE)
-	$(ODK) robot merge -i $(abspath $<) odk:normalize --add-source true --output $(abspath $@)
-
-$(RELEASE)/mirror_signature-$(SOURCE).tsv: $(RELEASE)/mirror-$(SOURCE).owl $(COMPAT)/classes.sparql
-	robot query -i $< --query $(COMPAT)/classes.sparql $@
-	(head -n 1 $@ && tail -n +2 $@ | sort) > $@-temp
-	mv $@-temp $@
+# mondo-ingest's metrics rule, on the component. ROBOT's "extended" metrics
+# (expressivity, OWL 2 profiles) need the OWL API, so this stays ROBOT, in the image.
+$(RELEASE)/$(SOURCE)-metrics.json: $(RELEASE)/$(SOURCE).owl
+	$(ODK) robot measure --prefix 'OMIM: http://omim.org/entry/' \
+		--prefix 'CHR: http://purl.obolibrary.org/obo/CHR_' \
+		--prefix 'UMLS: http://linkedlifedata.com/resource/umls/id/' \
+		--prefix 'HGNC: https://www.genenames.org/data/gene-symbol-report/\#!/hgnc_id/' \
+		--prefix 'biolink: https://w3id.org/biolink/vocab/' \
+		-i $(abspath $<) --format json --metrics extended --output $(abspath $@)
 
 # mondo-ingest's %.db rule. semsql writes next to its input, so build in TMP.
 $(RELEASE)/$(SOURCE).db: $(RELEASE)/$(SOURCE).owl $(COMPAT)/prefixes.csv

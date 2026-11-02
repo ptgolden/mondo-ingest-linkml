@@ -6,8 +6,7 @@ costs time instead (ORDO: about 19 s rather than 5 s in memory).
 """
 
 import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from pathlib import Path
 
 import pyoxigraph as ox
@@ -21,22 +20,28 @@ def rdf_format(path: Path) -> ox.RdfFormat:
     return rdf_format
 
 
-@contextmanager
-def loaded(source: Path) -> Iterator[ox.Store]:
-    """The source in a fresh store, deleted afterwards. The directory honours TMPDIR."""
+def with_store[T](source: Path, use: Callable[[ox.Store], T]) -> T:
+    """use(store) on the source in a fresh store, which is deleted afterwards (the
+    directory honours TMPDIR). use must not keep the store: RocksDB stays open, its
+    background threads writing files, until the last reference to the store is gone,
+    and the directory can only be deleted after that."""
     with tempfile.TemporaryDirectory(prefix="mondo-source-store-") as directory:
         store = ox.Store(directory)
         store.bulk_load(path=str(source), format=rdf_format(source))
-        yield store
+        result = use(store)
+        del store
+    return result
 
 
 def select_tsv(source: Path, query: Path, output: Path):
     """A SELECT over the source, as SPARQL TSV with its rows sorted (mondo-ingest's
     signature reports; formerly `robot query`)."""
-    with loaded(source) as store:
+    def select(store: ox.Store) -> bytes | None:
         solutions = store.query(query.read_text())
         assert isinstance(solutions, ox.QuerySolutions), f"{query} is not a SELECT query"
-        tsv = solutions.serialize(format=ox.QueryResultsFormat.TSV)
+        return solutions.serialize(format=ox.QueryResultsFormat.TSV)
+
+    tsv = with_store(source, select)
     assert tsv is not None
     header, *rows = tsv.decode().splitlines()
     output.write_text("\n".join([header, *sorted(rows)]) + "\n")

@@ -26,7 +26,7 @@ import pyoxigraph as ox
 import typer
 
 from mondo_source.prefixes import load_converter
-from mondo_source.rdfstore import loaded
+from mondo_source.rdfstore import with_store
 from mondo_source.yamlio import dump_yaml
 
 ANY_URI = "http://www.w3.org/2001/XMLSchema#anyURI"
@@ -95,8 +95,8 @@ def main(
 ):
     """Build a SourceRelease YAML from a source ontology."""
     try:
-        with loaded(ontology) as store:
-            results = run_queries(store, sparql, load_converter(prefixes))
+        converter = load_converter(prefixes)
+        results = with_store(ontology, lambda store: run_queries(store, sparql, converter))
         release = build(results, dict(s.split("=", 1) for s in set_))
     except (ValueError, pydantic.ValidationError) as e:
         raise SystemExit(f"assembly failed: {e}")

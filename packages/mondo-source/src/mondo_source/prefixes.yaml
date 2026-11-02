@@ -2,10 +2,10 @@
 # extended prefix map: prefix_synonyms are other spellings a source uses, which the
 # assembler rewrites to the canonical prefix.
 #
-# EXPERIMENT: like the schema, this would live once in mondo-ingest, not per source
-# repo. For now it follows mondo-ingest's own conventions for ORDO: the bases in its
-# src/ontology/metadata/ordo.metadata.sssom.yml, plus MONDO and icd11.foundation as
-# they appear in its released mappings/ordo.sssom.tsv (v2026-01-24).
+# One map for every source, shipped with mondo-source. It follows mondo-ingest's own
+# conventions: for ORDO, the bases in its src/ontology/metadata/ordo.metadata.sssom.yml,
+# plus MONDO and icd11.foundation as they appear in its released mappings/ordo.sssom.tsv
+# (v2026-01-24); for ICD10WHO, its metadata/icd10who.yml.
 
 # Vocabulary
 - {prefix: oboInOwl, uri_prefix: "http://www.geneontology.org/formats/oboInOwl#"}
@@ -27,6 +27,7 @@
 - {prefix: MESH, uri_prefix: "http://identifiers.org/mesh/", prefix_synonyms: [MeSH]}
 - {prefix: UMLS, uri_prefix: "http://linkedlifedata.com/resource/umls/id/"}
 - {prefix: MedDRA, uri_prefix: "https://identifiers.org/meddra/"}
+- {prefix: ICD10WHO, uri_prefix: "https://icd.who.int/browse10/2019/en#/"}
 
 # Gene-disease relation targets
 - {prefix: HGNC, uri_prefix: "http://identifiers.org/hgnc/"}

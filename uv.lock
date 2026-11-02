@@ -13,6 +13,7 @@ resolution-markers = [
 [manifest]
 members = [
     "mondo-source",
+    "mondo-source-icd10who",
     "mondo-source-ordo",
 ]
 
@@ -860,6 +861,17 @@ requires-dist = [
     { name = "sssom-schema", specifier = "==1.0.0" },
     { name = "typer", specifier = ">=0.27.3" },
 ]
+
+[[package]]
+name = "mondo-source-icd10who"
+version = "0.1.0"
+source = { virtual = "sources/icd10who" }
+dependencies = [
+    { name = "mondo-source" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "mondo-source", editable = "packages/mondo-source" }]
 
 [[package]]
 name = "mondo-source-ordo"

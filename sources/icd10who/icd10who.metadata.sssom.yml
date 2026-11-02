@@ -1,0 +1,6 @@
+# ICD10WHO has no mappings for Mondo to take in, so icd10who.sssom.tsv is this header
+# alone. mondo-ingest downloads it all the same (ICD10WHO_DOWNLOADS).
+mapping_set_id: http://purl.obolibrary.org/obo/mondo/sources/mappings/icd10who.sssom.tsv
+mapping_set_description: ICD10WHO mappings Mondo takes in from ICD-10 (WHO). ICD-10 states none, so this set is empty.
+# What mondo-ingest-icd10who's own icd10who.sssom.tsv states.
+license: https://w3id.org/sssom/license/unspecified

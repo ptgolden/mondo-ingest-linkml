@@ -1,0 +1,16 @@
+# -> SourceRelease.metadata. The Turtle's ontology header has no version, only a
+# comment naming the WHO API release it was built from:
+#   "Created from ICD-10 WHO API release: http://id.who.int/icd/release/10/2019"
+# The release URL is the version IRI, its last segment the version. It would be
+# better for mondo-ingest-icd10who to state owl:versionIRI and owl:versionInfo.
+# ICD-10 states no license or date.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?source_version ?source_version_iri
+WHERE {
+  ?o a owl:Ontology ;
+     rdfs:comment ?c .
+  FILTER(STRSTARTS(STR(?c), "Created from ICD-10 WHO API release: "))
+  BIND(STRAFTER(STR(?c), "release: ") AS ?source_version_iri)
+  BIND(REPLACE(?source_version_iri, "^.*/", "") AS ?source_version)
+}

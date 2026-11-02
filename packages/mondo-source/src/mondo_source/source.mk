@@ -18,8 +18,8 @@
 #
 # <source>.yaml is built in-process: the source is loaded into Oxigraph and queried with
 # the SPARQL in mondo-source's sparql/ and the source's own sparql/, whose files
-# replace ones of the same name. linkml-owl renders <source>.owl from it; ROBOT builds
-# the mirror.
+# replace ones of the same name. linkml-owl renders <source>.owl from it, header
+# included; ROBOT builds the mirror.
 
 COMPONENT_IRI := http://purl.obolibrary.org/obo/mondo/sources/$(SOURCE).owl
 
@@ -91,30 +91,15 @@ $(RELEASE)/$(SOURCE).sssom.tsv: $(RELEASE)/$(SOURCE).yaml $(PREFIXES) $(SSSOM_ME
 		--metadata $(SSSOM_METADATA) \
 		--output $@
 
-# <source>.owl: linkml-owl renders <source>.yaml from the schema's `owl` annotations;
-# ROBOT adds the ontology header (linkml-owl's RDF/XML has none) from the release
-# metadata: one annotation per OPTION,PROPERTY,METADATA_KEY below, left out when the
-# source doesn't publish that key.
-HEADER := \
-	annotation,http://www.w3.org/2002/07/owl\#versionInfo,source_version \
-	link-annotation,http://www.geneontology.org/formats/oboInOwl\#source,source_version_iri \
-	link-annotation,http://purl.org/dc/terms/license,source_license \
-	annotation,http://purl.org/dc/terms/modified,source_date \
-	annotation,http://purl.org/pav/createdOn,generated_at
-
+# <source>.owl: linkml-owl renders <source>.yaml from the schema's `owl` annotations,
+# with an ontology header from the release metadata.
 $(RELEASE)/$(SOURCE).owl: $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml $(TMP)/importmap.json $(SCHEMA) $(PREFIXES) $(PYTHON_SRC)
 	uv run mondo-source render-owl $< \
-		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
-		--prefixes $(PREFIXES) --output $(TMP)/$(SOURCE).rendered.owl
-	set --; for spec in $(HEADER); do \
-		opt=$${spec%%,*}; rest=$${spec#*,}; prop=$${rest%%,*}; key=$${rest#*,}; \
-		v=$$(sed -n "s/^$$key: *'\{0,1\}\([^']*\)'\{0,1\}$$/\1/p" $(RELEASE)/$(SOURCE).metadata.yaml); \
-		[ -z "$$v" ] || set -- "$$@" --$$opt $$prop "$$v"; \
-	done; \
-	robot annotate -i $(TMP)/$(SOURCE).rendered.owl \
+		--schema $(SCHEMA) --importmap $(TMP)/importmap.json --prefixes $(PREFIXES) \
+		--metadata $(RELEASE)/$(SOURCE).metadata.yaml \
 		--ontology-iri $(COMPONENT_IRI) \
 		--version-iri http://purl.obolibrary.org/obo/mondo/sources/$(TODAY)/$(SOURCE).owl \
-		"$$@" --output $@
+		--output $@
 
 $(RELEASE)/component_signature-$(SOURCE).tsv: $(RELEASE)/$(SOURCE).owl $(COMPAT)/classes.sparql
 	robot query -i $< --query $(COMPAT)/classes.sparql $@
@@ -162,4 +147,4 @@ validate: $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).sssom.tsv
 	uv run sssom validate $(RELEASE)/$(SOURCE).sssom.tsv
 
 clean:
-	rm -rf $(TMP)/semsql $(TMP)/$(SOURCE).rendered.owl $(RELEASE) $(MODELS)
+	rm -rf $(TMP)/semsql $(RELEASE) $(MODELS)

@@ -1,7 +1,7 @@
 """Build a SourceRelease YAML from a source ontology.
 
-Oxigraph loads the ontology and runs the SPARQL directories' updates (*.ru) in name
-order, then their queries (*.rq). A file in a later directory replaces one of the same
+The ontology is loaded into an on-disk Oxigraph store (rdfstore.py), which runs the
+SPARQL directories' updates (*.ru) in name order, then their queries (*.rq). A file in a later directory replaces one of the same
 name in an earlier one, so a source can override mondo-source's shared queries. Each
 query fills one part of the release:
 
@@ -26,18 +26,13 @@ import pyoxigraph as ox
 import typer
 
 from mondo_source.prefixes import load_converter
+from mondo_source.rdfstore import loaded
 from mondo_source.yamlio import dump_yaml
 
 ANY_URI = "http://www.w3.org/2001/XMLSchema#anyURI"
 
 
-def run_queries(ontology: Path, sparql: list[Path], converter: curies.Converter) -> dict[str, list[dict]]:
-    extension = ontology.suffix.removeprefix(".")
-    rdf_format = ox.RdfFormat.RDF_XML if extension == "owl" else ox.RdfFormat.from_extension(extension)
-    if rdf_format is None:
-        raise ValueError(f"unknown RDF format for {ontology}")
-    store = ox.Store()
-    store.bulk_load(path=str(ontology), format=rdf_format)
+def run_queries(store: ox.Store, sparql: list[Path], converter: curies.Converter) -> dict[str, list[dict]]:
     files = {f.name: f for d in sparql for f in sorted(d.iterdir()) if f.suffix in (".ru", ".rq")}
     for name in sorted(files):
         if name.endswith(".ru"):
@@ -100,7 +95,8 @@ def main(
 ):
     """Build a SourceRelease YAML from a source ontology."""
     try:
-        results = run_queries(ontology, sparql, load_converter(prefixes))
+        with loaded(ontology) as store:
+            results = run_queries(store, sparql, load_converter(prefixes))
         release = build(results, dict(s.split("=", 1) for s in set_))
     except (ValueError, pydantic.ValidationError) as e:
         raise SystemExit(f"assembly failed: {e}")

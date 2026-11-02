@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "curies>=0.15.3",
     "linkml>=1.12.1",
-    "linkml-owl>=0.5.0",
+    "linkml-owl>=0.5.1",
     "linkml-runtime>=1.12.1",
     "pydantic>=2.14.1",
     "pyoxigraph>=0.5.11",

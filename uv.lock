@@ -660,7 +660,7 @@ wheels = [
 
 [[package]]
 name = "linkml-owl"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -669,9 +669,9 @@ dependencies = [
     { name = "linkml-runtime" },
     { name = "py-horned-owl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/08/050a0376a7cef2314794827553e7165ab58027b83d02012c5eb9043d18d8/linkml_owl-0.5.0.tar.gz", hash = "sha256:3a3ab9bd9eb9d204579c7c790baef9c6b92428153c861d899ed31c87167b68bb", size = 19963, upload-time = "2026-03-19T02:13:30.287Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/23/7f510d22886149eb86518b8da5628f5f2efe8e861b309e6141cab0e6a9ca/linkml_owl-0.5.1.tar.gz", hash = "sha256:e6e71a655d6d69e5dcf8fe4129d04ec29d04e69198cef39e088fd04facb75e25", size = 20719, upload-time = "2026-11-02T19:59:13.776Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/dc/1a9bfa2e5eba1ee1d8a5f8ac8aafaa5aadade288427ccb78abba79586bfa/linkml_owl-0.5.0-py3-none-any.whl", hash = "sha256:f3d24bc17d4e0d052259d3abe9071b8e42843d6330e038013f9b65cc123bd00c", size = 23306, upload-time = "2026-03-19T02:13:28.976Z" },
+    { url = "https://files.pythonhosted.org/packages/84/09/a62ae7c3b93f127237c3e5f2c3a6cd685f47b739f21e0f178b8004e77f75/linkml_owl-0.5.1-py3-none-any.whl", hash = "sha256:fc251bf7790f05cb702bb1b561cd40b1b0551bc62b14b27c86367d5634a9f492", size = 24029, upload-time = "2026-11-02T19:59:12.672Z" },
 ]
 
 [[package]]
@@ -853,7 +853,7 @@ dependencies = [
 requires-dist = [
     { name = "curies", specifier = ">=0.15.3" },
     { name = "linkml", specifier = ">=1.12.1" },
-    { name = "linkml-owl", specifier = ">=0.5.0" },
+    { name = "linkml-owl", specifier = ">=0.5.1" },
     { name = "linkml-runtime", specifier = ">=1.12.1" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "pyoxigraph", specifier = ">=0.5.11" },

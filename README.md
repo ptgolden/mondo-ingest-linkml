@@ -142,16 +142,15 @@ A directory under `sources/` with:
   metadata query; everything else it uses is shared, and its output matches both
   mondo-ingest's last component and mondo-ingest-icd10who's YAML (see its README).
   Moving ORDO onto the shared queries changed none of its 11,668 terms.
-- **Timings (ORDO 4.9, linkml-owl 0.5.0, source already downloaded):**
+- **Timings (ORDO 4.9, source already downloaded):**
   - building `ordo.yaml` takes about 35 s (on-disk Oxigraph load, updates, queries,
     models, YAML);
-  - `make all bundle` takes about 7 minutes (419 s, 1.3 GB peak), about 5 of them
-    linkml-owl rendering `ordo.owl`. Three fixes to linkml-owl (memoising slot lookups,
-    compiling each template once, lazy logging arguments) bring that render from 290 s
-    to 63 s with identical output; the ROBOT-template rendering it replaced took about
-    30 s;
-  - for ICD10WHO, `make all` takes 148 s (the render is 114 s of it) and `make bundle`
-    35 s more;
+  - linkml-owl renders `ordo.owl` in about a minute. Before 0.5.1 it took 290 s; 0.5.1
+    has three fixes from this work (memoising slot lookups, compiling each template
+    once, lazy logging arguments), with identical output. The ROBOT-template rendering
+    it replaced took about 30 s;
+  - for ICD10WHO, the render takes 23 s (114 s before 0.5.1);
+  - `make bundle` adds well under a minute for either (35 s for ICD10WHO);
   - `make validate` takes about 1.5 minutes for ORDO, almost all YAML parsing.
 - **YAML is a cost and a correctness hazard, and stays because curators read it.**
   - The faithful 25 MB YAML of the original approach took 10.8 s to parse with PyYAML's C

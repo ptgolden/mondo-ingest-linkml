@@ -72,12 +72,13 @@ $(MODELS): $(SCHEMA) $(TMP)/importmap.json
 	uv run gen-pydantic --importmap $(TMP)/importmap.json $(SCHEMA) > $@.part
 	mv $@.part $@
 
-$(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $(SPARQL_FILES) $(MODELS) $(PREFIXES) $(PYTHON_SRC)
+$(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $(SPARQL_FILES) $(MODELS) $(TMP)/importmap.json $(PREFIXES) $(PYTHON_SRC)
 	mkdir -p $(RELEASE)
 	uv run mondo-source assemble \
 		--ontology $(SOURCE_FILE) \
 		$(addprefix --sparql ,$(SPARQL)) \
 		--prefixes $(PREFIXES) \
+		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
 		--set source_id=$(SOURCE) \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
 		--set schema_version=$(SCHEMA_VERSION) \

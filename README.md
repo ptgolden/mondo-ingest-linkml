@@ -103,17 +103,19 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
     every source, so the YAML shows what Mondo added rather than the source said.
   - Each query ends in an `ORDER BY`, which is what makes the output deterministic.
   - Queries do no prefix handling. They return IRIs as IRIs, and identifiers a source only
-    has as strings (ORDO's xrefs) as literals typed `xsd:anyURI`.
+    has as strings (ORDO's xrefs) as those strings.
 - **The Python leans on libraries**, and none of it is source-specific.
   - `extract.py` runs the queries and groups their rows by term into an *extract*: the
     source's terms, and what the source says about itself. `mondo-source assemble`
-    leaves it in `tmp/<source>.extract.json`, to look at.
-    - Identifiers go to `curies`, with `prefixes.yaml` as an extended prefix map. IRIs
-      are compressed, and `anyURI` literals are standardised, so ORDO's spellings
-      (`ICD-10`, `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`.
-    - Its one check of its own: a term with two values for a single-valued slot fails,
-      because keeping either would silently drop the other.
-  - `finalize.py` turns an extract into the release, adding the build's metadata.
+    leaves it in `tmp/<source>.extract.json`, to look at. Its one check of its own: a
+    term with two values for a single-valued slot fails, because keeping either would
+    silently drop the other.
+  - `finalize.py` turns an extract into the release:
+    - identifiers go to `curies`, with `prefixes.yaml` as an extended prefix map. An
+      IRI is compressed and a CURIE standardised, so ORDO's spellings (`ICD-10`, `MeSH`,
+      `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`. Which slots hold
+      identifiers is read from the schema;
+    - the build's metadata is added to the source's own.
   - Both use the Pydantic models generated from the schema (`gen-pydantic`, into the
     package at build time, not committed). Building them coerces types and checks
     required slots, CURIE patterns and unknown fields.

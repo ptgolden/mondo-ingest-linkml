@@ -1,10 +1,12 @@
 """The mondo-source command: one subcommand per pipeline step."""
 
+import json
 from pathlib import Path
 from typing import Annotated
 
 import pydantic
 import typer
+from linkml_runtime.utils.schemaview import SchemaView
 
 from mondo_source import rdfstore, render_owl, sssom
 from mondo_source.prefixes import load_converter
@@ -22,7 +24,9 @@ def assemble(
         list[Path], typer.Option(help="Directory of SPARQL updates (*.ru) and queries (*.rq); repeatable, later wins")
     ],
     prefixes: Annotated[Path, typer.Option(help="Extended prefix map (YAML) every identifier must use")],
+    schema: Annotated[Path, typer.Option()],
     output: Annotated[Path, typer.Option()],
+    importmap: Annotated[Path | None, typer.Option(help="LinkML importmap (JSON)")] = None,
     metadata_output: Annotated[Path | None, typer.Option()] = None,
     extract_output: Annotated[Path | None, typer.Option(help="Where to leave the extract (JSON), to look at")] = None,
     set_: Annotated[list[str], typer.Option("--set", help="Extra metadata, KEY=VALUE")] = [],
@@ -34,10 +38,11 @@ def assemble(
     from mondo_source.finalize import finalize
 
     try:
-        extracted = extract(ontology, sparql, load_converter(prefixes))
+        extracted = extract(ontology, sparql)
         if extract_output:
             extract_output.write_text(extracted.model_dump_json(exclude_none=True, indent=1))
-        release = finalize(extracted, dict(s.split("=", 1) for s in set_))
+        schema_view = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
+        release = finalize(extracted, load_converter(prefixes), schema_view, dict(s.split("=", 1) for s in set_))
     except (ValueError, pydantic.ValidationError) as e:
         raise SystemExit(f"assembly failed: {e}")
     data = release.model_dump(mode="json", exclude_none=True)

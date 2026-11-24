@@ -53,17 +53,15 @@ class Extract(pydantic.BaseModel):
 
 
 def identifier_slots(schema: SchemaView, class_name: str, path: SlotPath = ()) -> Iterator[SlotPath]:
-    """The slots of a class, and of the objects nested in it, that hold identifiers."""
+    """The slots of a class, and of the objects nested in it, that hold identifiers:
+    references to other objects, and values whose type is a kind of uriorcurie."""
     for slot in schema.class_induced_slots(class_name):
         assert slot.range is not None  # an induced slot has its own or the schema's default
         here = (*path, slot.name)
-        if slot.range in schema.all_classes():
-            # A class with an identifier is referred to by it (Term.parents); one
-            # without is nested (Term.synonyms).
-            if schema.get_identifier_slot(slot.range):
-                yield here
-            else:
-                yield from identifier_slots(schema, slot.range, here)
+        if schema.is_inlined(slot):
+            yield from identifier_slots(schema, slot.range, here)
+        elif slot.range in schema.all_classes():
+            yield here
         elif slot.range in schema.all_types() and "uriorcurie" in schema.type_ancestors(slot.range):
             yield here
 

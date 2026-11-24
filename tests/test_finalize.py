@@ -2,6 +2,7 @@ import curies
 import pytest
 
 from mondo_source.finalize import Extract, finalize
+from mondo_source.problems import Problem, Problems
 
 PIPELINE = {
     "source_id": "example",
@@ -67,11 +68,38 @@ def test_text_that_looks_like_an_identifier_is_left_alone(schema):
     assert term.label == "Example:2"
 
 
-def test_an_unknown_prefix_fails_naming_the_term_and_the_slot(schema):
-    stated = extract({"id": "EX:1", "label": "one", "parents": ["Unknown:2"]})
+def problems(schema, *terms: dict, pipeline: dict = PIPELINE) -> list[Problem]:
+    with pytest.raises(Problems) as raised:
+        finalize(extract(*terms), CONVERTER, schema, pipeline)
+    return raised.value.problems
 
-    with pytest.raises(ValueError, match=r"EX:1: parents: .*'Unknown:2'"):
-        finalize(stated, CONVERTER, schema, PIPELINE)
+
+def test_an_unknown_prefix_is_a_problem_naming_the_term_and_the_slot(schema):
+    stated = {"id": "Example:1", "label": "one", "mappings": [{"predicate_id": "skos:exactMatch", "object_id": "No:2"}]}
+
+    assert problems(schema, stated) == [Problem("Example:1", "mappings.object_id", "No:2", "no prefix in the prefix map")]
+
+
+def test_what_the_model_rejects_is_a_problem_for_each_slot(schema):
+    stated = {"id": "EX:1", "synonyms": [{"text": "one", "scope": "SIMILAR"}], "colour": "red"}
+
+    assert [(p.term, p.slot, p.value) for p in problems(schema, stated)] == [
+        ("EX:1", "colour", "red"),
+        ("EX:1", "label", "(missing)"),
+        ("EX:1", "synonyms.scope", "SIMILAR"),
+    ]
+
+
+def test_problems_in_every_term_and_in_the_metadata_are_reported_together(schema):
+    found = problems(
+        schema,
+        {"id": "EX:1", "label": "one", "parents": ["No:2"]},
+        {"id": "EX:2", "label": "two"},
+        {"id": "EX:3"},
+        pipeline={**PIPELINE, "generated_at": "yesterday"},
+    )
+
+    assert [(p.term, p.slot) for p in found] == [("(metadata)", "generated_at"), ("EX:1", "parents"), ("EX:3", "label")]
 
 
 def test_terms_and_their_values_come_out_sorted(schema):

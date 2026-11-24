@@ -137,10 +137,14 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
   - `yamlio.py` writes YAML that reads back the same under YAML 1.1 and 1.2.
 
   The CLIs use Typer, and `uv run pyright` is clean.
-- **Fail hard.** Assembly stops on:
-  - a term with conflicting single-valued slots;
-  - an identifier with no prefix in the map;
-  - anything the models reject.
+- **Fail hard, and say everything at once.** Nothing is written if:
+  - a term has conflicting single-valued slots (this one stops the extraction);
+  - an identifier has no prefix in the map;
+  - the models reject anything.
+
+  The last two are collected over the whole extract and printed together, a line each:
+  the term, the slot, the value as the source wrote it, and the problem. For a source
+  read with SPARQL, the slot is also the name of the query the value came from.
 
 ## Adding a source
 

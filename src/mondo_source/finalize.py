@@ -15,6 +15,9 @@ For each term:
 
 The terms are sorted by id, so the release doesn't depend on the order a source gives
 things in.
+
+A term that can't be built doesn't stop the others. Everything wrong with the extract
+is raised together, as Problems.
 """
 
 import curies
@@ -22,8 +25,11 @@ import pydantic
 from linkml_runtime.utils.schemaview import SchemaView
 
 from mondo_source.datamodel import ReleaseMetadata, Relationship, SourceRelease, Synonym, Term, TermMapping
-from mondo_source.identifiers import Identifiers, identifier_slots
+from mondo_source.identifiers import Identifiers, UnknownPrefix, identifier_slots
 from mondo_source.mondo_synonyms import mondo_synonyms
+from mondo_source.problems import Problem, Problems
+
+type Stated = dict[str, pydantic.JsonValue]
 
 
 class Extract(pydantic.BaseModel):
@@ -32,8 +38,41 @@ class Extract(pydantic.BaseModel):
     metadata: dict[str, str]
     """What the source says about itself: ReleaseMetadata's source_* slots."""
 
-    terms: list[dict[str, pydantic.JsonValue]]
+    terms: list[Stated]
     """Each in the shape of a Term."""
+
+
+def rejected(of: str, error: pydantic.ValidationError) -> list[Problem]:
+    """What a model found wrong with a term, or with the metadata."""
+    return [
+        Problem(
+            term=of,
+            slot=".".join(part for part in e["loc"] if isinstance(part, str)),
+            value="(missing)" if e["type"] == "missing" else str(e["input"]),
+            problem=e["msg"],
+        )
+        for e in error.errors()
+    ]
+
+
+def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
+    """The Term a stated term makes once its identifiers are canonical, or what is
+    wrong with it."""
+    stated_id = str(stated.get("id", "(no id)"))
+    try:
+        return Term.model_validate(identifiers.to_curies(stated))
+    except UnknownPrefix as e:
+        return [Problem(stated_id, ".".join(e.slot), e.identifier, "no prefix in the prefix map")]
+    except pydantic.ValidationError as e:
+        return rejected(stated_id, e)
+
+
+def metadata_from(stated: dict[str, str | None]) -> ReleaseMetadata | list[Problem]:
+    """The release's metadata, or what is wrong with it."""
+    try:
+        return ReleaseMetadata.model_validate(stated)
+    except pydantic.ValidationError as e:
+        return rejected("(metadata)", e)
 
 
 def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ...]:
@@ -67,18 +106,22 @@ def finalize(
     """pipeline_metadata: the ReleaseMetadata slots the build knows, not the source.
     schema_version is the schema's own."""
     identifiers = Identifiers(frozenset(identifier_slots(schema, "Term")), converter)
-    terms = []
+    terms: list[Term] = []
+    problems: list[Problem] = []
     for stated in extract.terms:
-        try:
-            term = Term.model_validate(identifiers.to_curies(stated))
-        except ValueError as e:
-            raise ValueError(f"{stated.get('id')}: {e}") from e
-        term.synonyms = [*(term.synonyms or []), *mondo_synonyms(term, identifiers, strip_brackets)] or None
-        sort_values(term)
-        terms.append(term)
+        match term_from(stated, identifiers):
+            case Term() as term:
+                term.synonyms = [*(term.synonyms or []), *mondo_synonyms(term, identifiers, strip_brackets)] or None
+                sort_values(term)
+                terms.append(term)
+            case list() as found:
+                problems += found
 
     assert schema.schema is not None
-    metadata = ReleaseMetadata.model_validate(
-        {**extract.metadata, **pipeline_metadata, "schema_version": schema.schema.version}
-    )
-    return SourceRelease(metadata=metadata, terms=sorted(terms, key=lambda term: term.id))
+    match metadata_from({**extract.metadata, **pipeline_metadata, "schema_version": schema.schema.version}):
+        case list() as found:
+            raise Problems([*problems, *found])
+        case _ if problems:
+            raise Problems(problems)
+        case metadata:
+            return SourceRelease(metadata=metadata, terms=sorted(terms, key=lambda term: term.id))

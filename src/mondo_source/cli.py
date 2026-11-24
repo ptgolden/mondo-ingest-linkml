@@ -45,13 +45,14 @@ def write_release(
     set_: list[str],
 ):
     from mondo_source.finalize import finalize
+    from mondo_source.problems import Problems
 
     schema_view = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
     metadata = dict(s.split("=", 1) for s in set_)
     try:
         release = finalize(extract, load_converter(prefixes), schema_view, metadata, strip_brackets)
-    except (ValueError, pydantic.ValidationError) as e:
-        raise SystemExit(f"no release: {e}")
+    except Problems as e:
+        raise SystemExit(f"{e}; nothing written")
     data = release.model_dump(mode="json", exclude_none=True)
     dump_yaml(data, output)
     if metadata_output:

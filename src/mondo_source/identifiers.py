@@ -3,7 +3,7 @@
 A source has its identifiers as IRIs, or as CURIEs in its own spelling of the prefix.
 The prefix map (prefixes.yaml, a curies extended prefix map) gives each its canonical
 CURIE: ORDO's "ICD-10:" and "MeSH:" become "ICD10:" and "MESH:". An identifier with no
-prefix in the map fails.
+prefix in the map is an UnknownPrefix.
 
 The schema says which slots hold identifiers.
 """
@@ -33,6 +33,15 @@ def identifier_slots(schema: SchemaView, class_name: str, path: SlotPath = ()) -
             yield here
 
 
+class UnknownPrefix(ValueError):
+    """An identifier, in a slot, that the prefix map has no prefix for."""
+
+    def __init__(self, slot: SlotPath, identifier: str):
+        self.slot = slot
+        self.identifier = identifier
+        super().__init__(f"{'.'.join(slot)}: no prefix in the prefix map for {identifier!r}")
+
+
 @dataclass(frozen=True)
 class Identifiers:
     """The slots that hold identifiers, and the prefix map their CURIEs come from."""
@@ -57,5 +66,5 @@ class Identifiers:
         """The canonical CURIE for an IRI, or for a CURIE in any spelling of its prefix."""
         curie = self.converter.compress_or_standardize(identifier)
         if curie is None:
-            raise ValueError(f"{'.'.join(slot)}: no prefix in the prefix map for {identifier!r}")
+            raise UnknownPrefix(slot, identifier)
         return curie

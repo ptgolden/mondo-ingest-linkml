@@ -43,6 +43,9 @@ make validate   # linkml-validate <source>.yaml; sssom validate <source>.sssom.t
 make refresh    # re-download the source, then build
 ```
 
+`uv run pytest`, at the top of the repo, runs the tests. They need the Pydantic models
+generated from the schema, and generate them if the schema is the newer.
+
 Outputs, in the source's `release/`:
 
 | File | What it is | Role |

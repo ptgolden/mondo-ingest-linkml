@@ -12,9 +12,14 @@ says which slots hold identifiers. Each term is then built as the Pydantic model
 generated from the schema (datamodel.py), which checks types, required slots, CURIE
 patterns and unknown slots.
 
+Mondo's own synonyms are then added to each term, typed as generated: the same two
+for every source, whatever it started as.
+
 Terms are sorted by id, and the values of each multivalued slot are sorted, so the
 release doesn't depend on the order a source gives things in.
 """
+
+import re
 
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -23,7 +28,15 @@ import curies
 import pydantic
 from linkml_runtime.utils.schemaview import SchemaView
 
-from mondo_source.datamodel import ReleaseMetadata, Relationship, SourceRelease, Synonym, Term, TermMapping
+from mondo_source.datamodel import (
+    ReleaseMetadata,
+    Relationship,
+    SourceRelease,
+    Synonym,
+    SynonymScope,
+    Term,
+    TermMapping,
+)
 
 type SlotPath = tuple[str, ...]
 """A slot of Term, or of an object nested in one: ("parents",), ("mappings", "object_id")."""
@@ -83,6 +96,39 @@ class Identifiers:
         return curie
 
 
+SYNONYM_TYPE: SlotPath = ("synonyms", "synonym_type")
+GENERATED_FROM_LABEL = "http://purl.obolibrary.org/obo/mondo#GENERATED_FROM_LABEL"
+GENERATED = "http://purl.obolibrary.org/obo/mondo#GENERATED"
+
+# "\Z", not "$": the end of the text, as in the SPARQL these came from, and not also
+# before a final newline.
+ENDS_IN_BRACKET = re.compile(r"[\])]\Z")
+FINAL_BRACKETED_PART = re.compile(r" [\[(].*[)\]]\Z")
+
+
+def generated(text: str, synonym_type: str, identifiers: Identifiers) -> Synonym:
+    return Synonym(text=text, scope=SynonymScope.EXACT, synonym_type=identifiers.curie(synonym_type, SYNONYM_TYPE))
+
+
+def mondo_synonyms(term: Term, identifiers: Identifiers) -> list[Synonym]:
+    """The synonyms Mondo adds to a term, all EXACT:
+
+    - the label of a term that isn't deprecated, typed mondo:GENERATED_FROM_LABEL
+      (mondo-ingest's exact_syn_from_label.ru);
+    - for the label and each exact synonym ending in ")" or "]", the lowercased text
+      without its final bracketed part, typed mondo:GENERATED (mondo-ingest's
+      fix-labels-with-brackets.ru): "Leprosy [Hansen disease]" gives "leprosy".
+    """
+    from_label = [] if term.deprecated else [term.label]
+    exact = [synonym.text for synonym in term.synonyms or [] if synonym.scope == SynonymScope.EXACT]
+    bracketed = [text for text in (term.label, *exact) if ENDS_IN_BRACKET.search(text)]
+    stripped = {FINAL_BRACKETED_PART.sub("", text.lower()) for text in bracketed}
+    return [
+        *(generated(text, GENERATED_FROM_LABEL, identifiers) for text in from_label),
+        *(generated(text, GENERATED, identifiers) for text in stripped),
+    ]
+
+
 def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ...]:
     """Where a value of a multivalued slot of Term goes among the others."""
     match value:
@@ -115,6 +161,7 @@ def finalize(
             term = Term.model_validate(identifiers.to_curies(stated))
         except ValueError as e:
             raise ValueError(f"{stated.get('id')}: {e}") from e
+        term.synonyms = [*(term.synonyms or []), *mondo_synonyms(term, identifiers)] or None
         sort_values(term)
         terms.append(term)
 

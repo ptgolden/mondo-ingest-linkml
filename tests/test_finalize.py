@@ -16,10 +16,12 @@ CONVERTER = curies.Converter.from_extended_prefix_map(
         {"prefix": "EX", "uri_prefix": "https://example.org/term/", "prefix_synonyms": ["Example"]},
         {"prefix": "skos", "uri_prefix": "http://www.w3.org/2004/02/skos/core#"},
         {"prefix": "semapv", "uri_prefix": "https://w3id.org/semapv/vocab/"},
+        {"prefix": "mondo_vocab", "uri_prefix": "http://purl.obolibrary.org/obo/mondo#"},
     ]
 )
 
 JUSTIFICATION = "semapv:ManualMappingCuration"
+FROM_LABEL, GENERATED = "mondo_vocab:GENERATED_FROM_LABEL", "mondo_vocab:GENERATED"
 
 
 def extract(*terms: dict) -> Extract:
@@ -103,9 +105,49 @@ def test_terms_and_their_values_come_out_sorted(schema):
         ("a", "EXACT", "EX:type"),
         ("a", "RELATED", None),
         ("b", "EXACT", None),
+        ("two", "EXACT", FROM_LABEL),
     ]
     assert [(m.object_id, m.predicate_id) for m in two.mappings or []] == [
         ("EX:8", "skos:exactMatch"),
         ("EX:8", "skos:narrowMatch"),
         ("EX:9", "skos:exactMatch"),
     ]
+
+
+def synonyms(schema, term: dict) -> list[tuple[str, str, str | None]]:
+    (finalized,) = finalize(extract(term), CONVERTER, schema, PIPELINE).terms
+    return [(s.text, s.scope, s.synonym_type) for s in finalized.synonyms or []]
+
+
+def test_the_label_becomes_an_exact_synonym(schema):
+    stated = {"id": "EX:1", "label": "Leprosy", "synonyms": [{"text": "Leprosy", "scope": "EXACT"}]}
+
+    assert synonyms(schema, stated) == [("Leprosy", "EXACT", None), ("Leprosy", "EXACT", FROM_LABEL)]
+
+
+def test_a_deprecated_terms_label_does_not(schema):
+    assert synonyms(schema, {"id": "EX:1", "label": "Leprosy", "deprecated": True}) == []
+
+
+def test_a_final_bracketed_part_is_stripped_from_labels_and_exact_synonyms(schema):
+    stated = {
+        "id": "EX:1",
+        "label": "Leprosy [Hansen disease]",
+        "deprecated": True,
+        "synonyms": [
+            {"text": "Lepra (A30)", "scope": "EXACT"},
+            {"text": "Hansen's (old)", "scope": "RELATED"},
+            {"text": "LEPROSY (ALL FORMS)", "scope": "EXACT"},
+        ],
+    }
+
+    assert [s for s in synonyms(schema, stated) if s[2] == GENERATED] == [
+        ("lepra", "EXACT", GENERATED),
+        ("leprosy", "EXACT", GENERATED),
+    ]
+
+
+def test_a_bracket_that_does_not_end_the_text_is_kept(schema):
+    stated = {"id": "EX:1", "label": "Type (I) disease", "deprecated": True}
+
+    assert synonyms(schema, stated) == []

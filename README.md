@@ -98,7 +98,7 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
     `metadata` ([sparql/README.md](src/mondo_source/sparql/README.md)).
     Sources add their own for what has no OBO convention (ORDO's mappings,
     relationships, subsets), or replace a shared one (ICD10WHO's metadata).
-  - Mondo's own additions are shared: `synonyms.rq` generates the label synonyms
+  - Mondo's own additions are not in the queries. `finalize.py` adds the label synonyms
     (`mondo:GENERATED_FROM_LABEL`) and the bracket-stripped ones (`mondo:GENERATED`) for
     every source, so the YAML shows what Mondo added rather than the source said.
   - Queries don't order their results. `finalize.py` sorts the terms and the values of
@@ -116,6 +116,7 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
       IRI is compressed and a CURIE standardised, so ORDO's spellings (`ICD-10`, `MeSH`,
       `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`. Which slots hold
       identifiers is read from the schema;
+    - Mondo's generated synonyms are added;
     - the build's metadata is added to the source's own;
     - terms are sorted by id, and each multivalued slot's values among themselves
       (mappings by object, then predicate).

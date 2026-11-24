@@ -25,7 +25,7 @@ exactly one label and one parent.
 | `icd10who.metadata.sssom.yml` | SSSOM metadata for the empty mapping set |
 
 Everything else comes from mondo-source's shared queries. Of mondo-ingest's ICD10WHO
-recipe, two steps change the content, and both are in the shared `synonyms.rq`:
+recipe, two steps change the content, and both are in mondo-source's `finalize.py`:
 `exact_syn_from_label.ru` and `fix-labels-with-brackets.ru`. The rest do nothing for
 ICD10WHO: its property renames (the Turtle already uses `rdfs:label`), `fix_omimps.ru`
 (no xrefs), and an empty `icd10who_exclusions.tsv`.

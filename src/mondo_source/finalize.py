@@ -153,7 +153,8 @@ def sort_values(term: Term) -> None:
 def finalize(
     extract: Extract, converter: curies.Converter, schema: SchemaView, pipeline_metadata: dict[str, str]
 ) -> SourceRelease:
-    """pipeline_metadata: the ReleaseMetadata slots the build knows, not the source."""
+    """pipeline_metadata: the ReleaseMetadata slots the build knows, not the source.
+    schema_version is the schema's own."""
     identifiers = Identifiers(frozenset(identifier_slots(schema, "Term")), converter)
     terms = []
     for stated in extract.terms:
@@ -165,5 +166,8 @@ def finalize(
         sort_values(term)
         terms.append(term)
 
-    metadata = ReleaseMetadata.model_validate({**extract.metadata, **pipeline_metadata})
+    assert schema.schema is not None
+    metadata = ReleaseMetadata.model_validate(
+        {**extract.metadata, **pipeline_metadata, "schema_version": schema.schema.version}
+    )
     return SourceRelease(metadata=metadata, terms=sorted(terms, key=lambda term: term.id))

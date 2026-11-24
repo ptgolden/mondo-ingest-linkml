@@ -25,7 +25,6 @@
 COMPONENT_IRI := http://purl.obolibrary.org/obo/mondo/sources/$(SOURCE).owl
 
 SCHEMA := $(MONDO_SOURCE)/schema/mondo_source.yaml
-SCHEMA_VERSION := $(shell sed -n 's/^version: *//p' $(SCHEMA))
 PREFIXES := $(MONDO_SOURCE)/prefixes.yaml
 SPARQL := $(MONDO_SOURCE)/sparql sparql
 SPARQL_FILES = $(wildcard $(addsuffix /*.ru,$(SPARQL)) $(addsuffix /*.rq,$(SPARQL)))
@@ -81,7 +80,6 @@ $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $
 		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
 		--set source_id=$(SOURCE) \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
-		--set schema_version=$(SCHEMA_VERSION) \
 		--set generated_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 		--set generated_by=$(GENERATED_BY) \
 		--extract-output $(TMP)/$(SOURCE).extract.json \

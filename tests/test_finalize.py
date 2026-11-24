@@ -75,9 +75,20 @@ def problems(schema, *terms: dict, pipeline: dict = PIPELINE) -> list[Problem]:
 
 
 def test_an_unknown_prefix_is_a_problem_naming_the_term_and_the_slot(schema):
-    stated = {"id": "Example:1", "label": "one", "mappings": [{"predicate_id": "skos:exactMatch", "object_id": "No:2"}]}
+    mapping = {"predicate_id": "skos:exactMatch", "object_id": "No:2", "mapping_justification": JUSTIFICATION}
+    stated = {"id": "Example:1", "label": "one", "mappings": [mapping]}
 
     assert problems(schema, stated) == [Problem("Example:1", "mappings.object_id", "No:2", "no prefix in the prefix map")]
+
+
+def test_every_unknown_prefix_in_a_term_is_a_problem_and_so_is_what_the_model_rejects(schema):
+    stated = {"id": "EX:1", "parents": ["No:2", "Nor:3"]}
+
+    assert [(p.slot, p.value) for p in problems(schema, stated)] == [
+        ("label", "(missing)"),
+        ("parents", "No:2"),
+        ("parents", "Nor:3"),
+    ]
 
 
 def test_what_the_model_rejects_is_a_problem_for_each_slot(schema):

@@ -52,10 +52,21 @@ def test_to_curies_converts_identifiers_and_nothing_else():
     assert stated["id"] == "https://example.org/term/1"
 
 
-def test_an_identifier_with_no_prefix_in_the_map_is_an_unknown_prefix():
-    identifiers = Identifiers(frozenset({("mappings", "object_id")}), CONVERTER)
+def test_identifiers_with_no_prefix_in_the_map_are_found_and_left_as_they_are():
+    identifiers = Identifiers(frozenset({("parents",), ("mappings", "object_id")}), CONVERTER)
+    stated = {"parents": ["EX:1", "No:2"], "mappings": [{"object_id": "https://elsewhere.org/3"}]}
 
+    assert identifiers.unknown_in(stated) == [
+        (("parents",), "No:2"),
+        (("mappings", "object_id"), "https://elsewhere.org/3"),
+    ]
+    assert identifiers.to_curies(stated) == stated
+
+
+def test_curie_is_for_an_identifier_that_must_have_one():
+    identifiers = Identifiers(frozenset(), CONVERTER)
+
+    assert identifiers.curie("https://example.org/term/1", ("id",)) == "EX:1"
     with pytest.raises(UnknownPrefix) as raised:
-        identifiers.to_curies({"mappings": [{"object_id": "No:1"}]})
-
-    assert (raised.value.slot, raised.value.identifier) == (("mappings", "object_id"), "No:1")
+        identifiers.curie("No:1", ("id",))
+    assert (raised.value.slot, raised.value.identifier) == (("id",), "No:1")

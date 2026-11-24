@@ -30,7 +30,7 @@ import pydantic
 from linkml_runtime.utils.schemaview import SchemaView
 
 from mondo_source.datamodel import ReleaseMetadata, Relationship, SourceRelease, Synonym, Term, TermMapping
-from mondo_source.identifiers import Identifiers, UnknownPrefix, identifier_slots
+from mondo_source.identifiers import Identifiers, identifier_slots
 from mondo_source.mondo_synonyms import mondo_synonyms
 from mondo_source.problems import Problem, Problems
 
@@ -67,12 +67,15 @@ def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
     """The Term a stated term makes once its identifiers are canonical, or what is
     wrong with it."""
     stated_id = str(stated.get("id", "(no id)"))
+    problems = [
+        Problem(stated_id, ".".join(slot), identifier, "no prefix in the prefix map")
+        for slot, identifier in identifiers.unknown_in(stated)
+    ]
     try:
-        return Term.model_validate(identifiers.to_curies(stated))
-    except UnknownPrefix as e:
-        return [Problem(stated_id, ".".join(e.slot), e.identifier, "no prefix in the prefix map")]
+        term = Term.model_validate(identifiers.to_curies(stated))
     except pydantic.ValidationError as e:
-        return rejected(stated_id, e)
+        return [*problems, *rejected(stated_id, e)]
+    return problems or term
 
 
 def metadata_from(stated: dict[str, str | None]) -> ReleaseMetadata | list[Problem]:

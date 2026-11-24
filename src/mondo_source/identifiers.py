@@ -3,7 +3,7 @@
 A source has its identifiers as IRIs, or as CURIEs in its own spelling of the prefix.
 The prefix map (prefixes.yaml, a curies extended prefix map) gives each its canonical
 CURIE: ORDO's "ICD-10:" and "MeSH:" become "ICD10:" and "MESH:". An identifier with no
-prefix in the map is an UnknownPrefix.
+prefix in the map has no canonical CURIE, and a term that has one can't be taken in.
 
 The schema says which slots hold identifiers.
 """
@@ -51,19 +51,42 @@ class Identifiers:
 
     def to_curies(self, stated: JsonValue, path: SlotPath = ()) -> JsonValue:
         """A stated term, or the part of one at path, with each identifier as its
-        canonical CURIE."""
+        canonical CURIE. One the prefix map has no prefix for stays as it is:
+        unknown_in() finds those."""
         match stated:
             case dict():
                 return {slot: self.to_curies(value, (*path, slot)) for slot, value in stated.items()}
             case list():
                 return [self.to_curies(value, path) for value in stated]
             case str() if path in self.slots:
-                return self.curie(stated, path)
+                return self.converter.compress_or_standardize(stated) or stated
             case _:
                 return stated
 
+    def identifiers_in(self, stated: JsonValue, path: SlotPath = ()) -> Iterator[tuple[SlotPath, str]]:
+        """Each identifier in a stated term, or in the part of one at path, with its slot."""
+        match stated:
+            case dict():
+                for slot, value in stated.items():
+                    yield from self.identifiers_in(value, (*path, slot))
+            case list():
+                for value in stated:
+                    yield from self.identifiers_in(value, path)
+            case str() if path in self.slots:
+                yield path, stated
+
+    def unknown_in(self, stated: JsonValue) -> list[tuple[SlotPath, str]]:
+        """The identifiers in a stated term that the prefix map has no prefix for, each
+        with its slot."""
+        return [
+            (slot, identifier)
+            for slot, identifier in self.identifiers_in(stated)
+            if self.converter.compress_or_standardize(identifier) is None
+        ]
+
     def curie(self, identifier: str, slot: SlotPath) -> str:
-        """The canonical CURIE for an IRI, or for a CURIE in any spelling of its prefix."""
+        """The canonical CURIE for an IRI, or for a CURIE in any spelling of its prefix.
+        For an identifier that must have one: Mondo's own, not a source's."""
         curie = self.converter.compress_or_standardize(identifier)
         if curie is None:
             raise UnknownPrefix(slot, identifier)

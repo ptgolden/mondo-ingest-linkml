@@ -99,8 +99,12 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
     Sources add their own for what has no OBO convention (ORDO's mappings,
     relationships, subsets), or replace a shared one (ICD10WHO's metadata).
   - Mondo's own additions are not in the queries. `finalize.py` adds the label synonyms
-    (`mondo:GENERATED_FROM_LABEL`) and the bracket-stripped ones (`mondo:GENERATED`) for
-    every source, so the YAML shows what Mondo added rather than the source said.
+    (`mondo:GENERATED_FROM_LABEL`) for every source, and the bracket-stripped ones
+    (`mondo:GENERATED`) for a source whose Makefile sets `STRIP_BRACKETS`, so the YAML
+    shows what Mondo added rather than the source said. The second is a choice per
+    source, as in mondo-ingest, which doesn't make them for NCIT or ICD11 Foundation:
+    NCIT's final brackets are mostly cytogenetics (`… with t(5;12)(q31;p12)`), and
+    ICD11's `(TM2)` marks a traditional-medicine concept.
   - Queries don't order their results. `finalize.py` sorts the terms and the values of
     each multivalued slot, which is what makes the output deterministic.
   - Queries do no prefix handling. They return IRIs as IRIs, and identifiers a source only
@@ -141,7 +145,8 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
 
 A directory under `sources/` with:
 - a `Makefile` setting `SOURCE`, `SOURCE_URL`, `SOURCE_FILE` (RDF/XML as `.owl`, or
-  Turtle) and `SSSOM_METADATA`, then including `source.mk`;
+  Turtle) and `SSSOM_METADATA`, and `STRIP_BRACKETS` if Mondo takes its bracket-stripped
+  names, then including `source.mk`;
 - `sparql/` with at least a scope update, plus whatever rewrites the source into OBO
   conventions and whatever queries it needs beyond the shared ones;
 - its SSSOM metadata;

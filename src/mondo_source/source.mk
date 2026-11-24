@@ -14,6 +14,9 @@
 #   SOURCE_URL      where to download the source (RDF/XML or Turtle)
 #   SOURCE_FILE     where to keep the download; its extension gives its RDF format
 #   SSSOM_METADATA  mapping set metadata for <source>.sssom.tsv
+#   STRIP_BRACKETS  optional. If set, Mondo also takes each label and exact synonym
+#                   without its final bracketed part, as a generated synonym
+#                   (mondo-ingest's fix-labels-with-brackets.ru)
 #   MONDO_SOURCE    this package's data directory (`mondo-source data-dir`)
 #
 # <source>.yaml is built in-process: the source is loaded into Oxigraph and queried with
@@ -78,6 +81,7 @@ $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $
 		$(addprefix --sparql ,$(SPARQL)) \
 		--prefixes $(PREFIXES) \
 		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
+		$(if $(STRIP_BRACKETS),--strip-brackets) \
 		--set source_id=$(SOURCE) \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
 		--set generated_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \

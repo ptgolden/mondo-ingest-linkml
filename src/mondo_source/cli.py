@@ -29,6 +29,9 @@ def assemble(
     importmap: Annotated[Path | None, typer.Option(help="LinkML importmap (JSON)")] = None,
     metadata_output: Annotated[Path | None, typer.Option()] = None,
     extract_output: Annotated[Path | None, typer.Option(help="Where to leave the extract (JSON), to look at")] = None,
+    strip_brackets: Annotated[
+        bool, typer.Option("--strip-brackets", help="Add each label and exact synonym without its final bracketed part")
+    ] = False,
     set_: Annotated[list[str], typer.Option("--set", help="Extra metadata, KEY=VALUE")] = [],
 ):
     """Build a SourceRelease YAML from a source ontology."""
@@ -42,7 +45,9 @@ def assemble(
         if extract_output:
             extract_output.write_text(extracted.model_dump_json(exclude_none=True, indent=1))
         schema_view = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
-        release = finalize(extracted, load_converter(prefixes), schema_view, dict(s.split("=", 1) for s in set_))
+        release = finalize(
+            extracted, load_converter(prefixes), schema_view, dict(s.split("=", 1) for s in set_), strip_brackets
+        )
     except (ValueError, pydantic.ValidationError) as e:
         raise SystemExit(f"assembly failed: {e}")
     data = release.model_dump(mode="json", exclude_none=True)

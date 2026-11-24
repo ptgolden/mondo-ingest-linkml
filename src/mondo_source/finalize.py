@@ -12,8 +12,8 @@ says which slots hold identifiers. Each term is then built as the Pydantic model
 generated from the schema (datamodel.py), which checks types, required slots, CURIE
 patterns and unknown slots.
 
-Mondo's own synonyms are then added to each term, typed as generated: the same two
-for every source, whatever it started as.
+Mondo's own synonyms are then added to each term, typed as generated: its label, for
+every source, and its bracket-stripped names, for the sources that ask.
 
 Terms are sorted by id, and the values of each multivalued slot are sorted, so the
 release doesn't depend on the order a source gives things in.
@@ -110,19 +110,28 @@ def generated(text: str, synonym_type: str, identifiers: Identifiers) -> Synonym
     return Synonym(text=text, scope=SynonymScope.EXACT, synonym_type=identifiers.curie(synonym_type, SYNONYM_TYPE))
 
 
-def mondo_synonyms(term: Term, identifiers: Identifiers) -> list[Synonym]:
+def bracket_stripped(term: Term) -> set[str]:
+    """The label and each exact synonym of a term that end in ")" or "]", lowercased
+    and without the final bracketed part (mondo-ingest's fix-labels-with-brackets.ru):
+    "Leprosy [Hansen disease]" gives "leprosy".
+
+    As there, the part goes only if a space comes before its opening bracket:
+    "pericytoma with t(7;12)" is lowercased and nothing more.
+    """
+    exact = [synonym.text for synonym in term.synonyms or [] if synonym.scope == SynonymScope.EXACT]
+    bracketed = [text for text in (term.label, *exact) if ENDS_IN_BRACKET.search(text)]
+    return {FINAL_BRACKETED_PART.sub("", text.lower()) for text in bracketed}
+
+
+def mondo_synonyms(term: Term, identifiers: Identifiers, strip_brackets: bool) -> list[Synonym]:
     """The synonyms Mondo adds to a term, all EXACT:
 
     - the label of a term that isn't deprecated, typed mondo:GENERATED_FROM_LABEL
-      (mondo-ingest's exact_syn_from_label.ru);
-    - for the label and each exact synonym ending in ")" or "]", the lowercased text
-      without its final bracketed part, typed mondo:GENERATED (mondo-ingest's
-      fix-labels-with-brackets.ru): "Leprosy [Hansen disease]" gives "leprosy".
+      (mondo-ingest's exact_syn_from_label.ru), for every source;
+    - bracket_stripped(), typed mondo:GENERATED, for the sources that ask for it.
     """
     from_label = [] if term.deprecated else [term.label]
-    exact = [synonym.text for synonym in term.synonyms or [] if synonym.scope == SynonymScope.EXACT]
-    bracketed = [text for text in (term.label, *exact) if ENDS_IN_BRACKET.search(text)]
-    stripped = {FINAL_BRACKETED_PART.sub("", text.lower()) for text in bracketed}
+    stripped = bracket_stripped(term) if strip_brackets else set()
     return [
         *(generated(text, GENERATED_FROM_LABEL, identifiers) for text in from_label),
         *(generated(text, GENERATED, identifiers) for text in stripped),
@@ -151,7 +160,11 @@ def sort_values(term: Term) -> None:
 
 
 def finalize(
-    extract: Extract, converter: curies.Converter, schema: SchemaView, pipeline_metadata: dict[str, str]
+    extract: Extract,
+    converter: curies.Converter,
+    schema: SchemaView,
+    pipeline_metadata: dict[str, str],
+    strip_brackets: bool = False,
 ) -> SourceRelease:
     """pipeline_metadata: the ReleaseMetadata slots the build knows, not the source.
     schema_version is the schema's own."""
@@ -162,7 +175,7 @@ def finalize(
             term = Term.model_validate(identifiers.to_curies(stated))
         except ValueError as e:
             raise ValueError(f"{stated.get('id')}: {e}") from e
-        term.synonyms = [*(term.synonyms or []), *mondo_synonyms(term, identifiers)] or None
+        term.synonyms = [*(term.synonyms or []), *mondo_synonyms(term, identifiers, strip_brackets)] or None
         sort_values(term)
         terms.append(term)
 

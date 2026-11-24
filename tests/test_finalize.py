@@ -114,8 +114,8 @@ def test_terms_and_their_values_come_out_sorted(schema):
     ]
 
 
-def synonyms(schema, term: dict) -> list[tuple[str, str, str | None]]:
-    (finalized,) = finalize(extract(term), CONVERTER, schema, PIPELINE).terms
+def synonyms(schema, term: dict, strip_brackets: bool = False) -> list[tuple[str, str, str | None]]:
+    (finalized,) = finalize(extract(term), CONVERTER, schema, PIPELINE, strip_brackets).terms
     return [(s.text, s.scope, s.synonym_type) for s in finalized.synonyms or []]
 
 
@@ -141,13 +141,20 @@ def test_a_final_bracketed_part_is_stripped_from_labels_and_exact_synonyms(schem
         ],
     }
 
-    assert [s for s in synonyms(schema, stated) if s[2] == GENERATED] == [
+    assert [s for s in synonyms(schema, stated, strip_brackets=True) if s[2] == GENERATED] == [
         ("lepra", "EXACT", GENERATED),
         ("leprosy", "EXACT", GENERATED),
     ]
+    assert [s for s in synonyms(schema, stated) if s[2] == GENERATED] == []
 
 
 def test_a_bracket_that_does_not_end_the_text_is_kept(schema):
     stated = {"id": "EX:1", "label": "Type (I) disease", "deprecated": True}
 
-    assert synonyms(schema, stated) == []
+    assert synonyms(schema, stated, strip_brackets=True) == []
+
+
+def test_a_final_bracket_with_no_space_before_it_is_only_lowercased(schema):
+    stated = {"id": "EX:1", "label": "Pericytoma with t(7;12)", "deprecated": True}
+
+    assert synonyms(schema, stated, strip_brackets=True) == [("pericytoma with t(7;12)", "EXACT", GENERATED)]

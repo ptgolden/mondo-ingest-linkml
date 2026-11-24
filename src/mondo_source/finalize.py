@@ -38,6 +38,9 @@ type Stated = dict[str, pydantic.JsonValue]
 
 
 class Extract(pydantic.BaseModel):
+    """What a source states, before anything shared is done to it. As JSON, it is the
+    file that a source which isn't RDF writes."""
+
     model_config = pydantic.ConfigDict(extra="forbid")
 
     metadata: dict[str, str]
@@ -112,6 +115,7 @@ def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ..
 
 
 def sort_values(term: Term) -> None:
+    """Put the values of each multivalued slot of a term in order."""
     for slot in Term.model_fields:
         values = getattr(term, slot)
         if isinstance(values, list):
@@ -125,8 +129,13 @@ def finalize(
     pipeline_metadata: dict[str, str],
     strip_brackets: bool = False,
 ) -> SourceRelease:
-    """pipeline_metadata: the ReleaseMetadata slots the build knows, not the source.
-    schema_version is the schema's own."""
+    """The release an extract makes, or Problems.
+
+    pipeline_metadata is the ReleaseMetadata slots that the build knows and the source
+    doesn't (source_id, generated_at, ...); schema_version is the schema's own.
+    strip_brackets is whether Mondo takes this source's bracket-stripped names
+    (mondo_synonyms.py).
+    """
     identifiers = Identifiers(frozenset(identifier_slots(schema, "Term")), converter)
     terms: list[Term] = []
     problems: list[Problem] = []

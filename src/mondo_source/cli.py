@@ -44,6 +44,8 @@ def write_release(
     strip_brackets: bool,
     set_: list[str],
 ):
+    """Finalize an extract and write the release, and its metadata again on its own if
+    asked. If the extract has problems, print them and write nothing."""
     from mondo_source.finalize import finalize
     from mondo_source.problems import Problems
 

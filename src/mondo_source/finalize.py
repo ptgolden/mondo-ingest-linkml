@@ -16,9 +16,14 @@ For each term:
 The terms are sorted by id, so the release doesn't depend on the order a source gives
 things in.
 
+Two things are then checked across the terms: no two have the same id, and every
+parent is a term of the release.
+
 A term that can't be built doesn't stop the others. Everything wrong with the extract
 is raised together, as Problems.
 """
+
+from collections import Counter
 
 import curies
 import pydantic
@@ -75,6 +80,23 @@ def metadata_from(stated: dict[str, str | None]) -> ReleaseMetadata | list[Probl
         return rejected("(metadata)", e)
 
 
+def repeated_ids(terms: list[Term]) -> list[Problem]:
+    """A problem for each id that more than one term has."""
+    counts = Counter(term.id for term in terms)
+    return [Problem(id, "id", id, f"the id of {count} terms") for id, count in counts.items() if count > 1]
+
+
+def parents_outside(terms: list[Term]) -> list[Problem]:
+    """A problem for each parent that isn't a term of the release."""
+    ids = {term.id for term in terms}
+    return [
+        Problem(term.id, "parents", parent, "not a term of the release")
+        for term in terms
+        for parent in term.parents or []
+        if parent not in ids
+    ]
+
+
 def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ...]:
     """Where a value of a multivalued slot of Term goes among the others."""
     match value:
@@ -116,6 +138,9 @@ def finalize(
                 terms.append(term)
             case list() as found:
                 problems += found
+    # Only once every term is built: a term that wasn't would be missed as a parent.
+    if not problems:
+        problems = [*repeated_ids(terms), *parents_outside(terms)]
 
     assert schema.schema is not None
     match metadata_from({**extract.metadata, **pipeline_metadata, "schema_version": schema.schema.version}):

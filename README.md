@@ -140,11 +140,12 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
 - **Fail hard, and say everything at once.** Nothing is written if:
   - a term has conflicting single-valued slots (this one stops the extraction);
   - an identifier has no prefix in the map;
-  - the models reject anything.
+  - the models reject anything;
+  - two terms have the same id, or a term's parent isn't a term of the release.
 
-  The last two are collected over the whole extract and printed together, a line each:
-  the term, the slot, the value as the source wrote it, and the problem. For a source
-  read with SPARQL, the slot is also the name of the query the value came from.
+  All but the first are collected over the whole extract and printed together, a line
+  each: the term, the slot, the value as the source wrote it, and the problem. For a
+  source read with SPARQL, the slot is also the name of the query the value came from.
 
 ## Adding a source
 

@@ -186,3 +186,15 @@ def test_a_final_bracket_with_no_space_before_it_is_only_lowercased(schema):
     stated = {"id": "EX:1", "label": "Pericytoma with t(7;12)", "deprecated": True}
 
     assert synonyms(schema, stated, strip_brackets=True) == [("pericytoma with t(7;12)", "EXACT", GENERATED)]
+
+
+def test_two_terms_with_one_id_are_a_problem(schema):
+    found = problems(schema, {"id": "EX:1", "label": "one"}, {"id": "Example:1", "label": "uno"})
+
+    assert found == [Problem("EX:1", "id", "EX:1", "the id of 2 terms")]
+
+
+def test_a_parent_that_is_not_a_term_of_the_release_is_a_problem(schema):
+    found = problems(schema, {"id": "EX:1", "label": "one", "parents": ["EX:2"]})
+
+    assert found == [Problem("EX:1", "parents", "EX:2", "not a term of the release")]

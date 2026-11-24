@@ -26,7 +26,7 @@ One Python package, `mondo-source`, and one directory per source:
 | `sources/ordo` | ORDO's own: its Makefile settings, SPARQL and SSSOM metadata. [README](sources/ordo/README.md) | ORDO's source repo |
 | `sources/icd10who` | ICD10WHO's own, likewise. [README](sources/icd10who/README.md) | Part of mondo-ingest-icd10who |
 
-A source directory holds no Python, so it isn't a package: its Makefile runs the
+Neither source directory holds Python, so neither is a package: its Makefile runs the
 `mondo-source` CLI from the project it sits in. ORDO's is 7 SPARQL files; ICD10WHO's is 2.
 
 ## Running it
@@ -64,6 +64,7 @@ The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOA
 
 ```
 source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs--> <source>.yaml
+   or: an extract --mondo-source finalize--> <source>.yaml
 <source>.yaml --mondo-source sssom--> <source>.sssom.tsv
 <source>.yaml --mondo-source render-owl (linkml-owl, plus header and declarations)--> <source>.owl
 ```
@@ -152,6 +153,12 @@ A directory under `sources/` with:
 - its SSSOM metadata;
 - its prefixes, added to the shared `prefixes.yaml`.
 
+A source that isn't RDF has no `SOURCE_URL`, `SOURCE_FILE` or `sparql/`. Its Makefile
+gives the rule for `$(EXTRACT)` instead: a JSON file its own code writes, with
+`metadata` (what the source says about itself) and `terms`, each in the shape of the
+schema's `Term`. Identifiers may be IRIs or CURIEs in any spelling `prefixes.yaml`
+knows. `mondo-source finalize` does to it what it does to an RDF source's extract.
+
 ## Findings about the approach
 
 - **A second source cost two SPARQL files.** ICD10WHO needed a scope update and a
@@ -194,8 +201,9 @@ A directory under `sources/` with:
   source repo.
 - **An audit report.** A report of what each Mondo-interpretation step did (e.g. counts of
   generated synonyms, promoted `part_of` edges) could replace a second, faithful YAML.
-- **The non-RDF path.** It isn't exercised here, and may not need to be: every source
-  mondo-ingest has (DOID, ICD10CM, ICD10WHO, ICD11, NCIT, OMIM, ORDO) reaches it as RDF,
-  the non-RDF ones converted in their own repos. A non-RDF adapter would only have to
-  produce what the queries do: rows keyed by term ID, per slot.
+- **The non-RDF path.** A source that isn't RDF has a way in (`mondo-source finalize`)
+  and no source here uses it yet. Of mondo-ingest's sources, OMIM, ICD10WHO and ICD11
+  Foundation don't start as RDF; ICD10WHO reaches this repo as the Turtle its own repo
+  makes. Not decided: what such a source publishes as its mirror, which `make bundle`
+  and mondo-ingest's checks expect.
 - **`mapping_set_id` and PURLs** are placeholders until the PURL scheme is decided.

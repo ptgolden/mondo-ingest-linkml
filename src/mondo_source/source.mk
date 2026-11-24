@@ -11,19 +11,29 @@
 # The source's Makefile sets, before including this file:
 #
 #   SOURCE          short id, e.g. ordo; names every output
-#   SOURCE_URL      where to download the source (RDF/XML or Turtle)
-#   SOURCE_FILE     where to keep the download; its extension gives its RDF format
 #   SSSOM_METADATA  mapping set metadata for <source>.sssom.tsv
+#   MONDO_SOURCE    this package's data directory (`mondo-source data-dir`)
 #   STRIP_BRACKETS  optional. If set, Mondo also takes each label and exact synonym
 #                   without its final bracketed part, as a generated synonym
 #                   (mondo-ingest's fix-labels-with-brackets.ru)
-#   MONDO_SOURCE    this package's data directory (`mondo-source data-dir`)
 #
-# <source>.yaml is built in-process: the source is loaded into Oxigraph and queried with
-# the SPARQL in mondo-source's sparql/ and the source's own sparql/, whose files
-# replace ones of the same name. linkml-owl renders <source>.owl from it. Oxigraph's
-# store is on disk, so even NCIT fits in a couple of GB. ROBOT is used only inside the
-# ODK image, for the metrics.
+# and, if the source is RDF:
+#
+#   SOURCE_URL      where to download the source (RDF/XML or Turtle)
+#   SOURCE_FILE     where to keep the download; its extension gives its RDF format
+#
+# An RDF source's <source>.yaml is built in-process: the source is loaded into Oxigraph
+# and queried with the SPARQL in mondo-source's sparql/ and the source's own sparql/,
+# whose files replace ones of the same name. Oxigraph's store is on disk, so even NCIT
+# fits in a couple of GB.
+#
+# A source that isn't RDF sets neither of those two. After including this file, its
+# Makefile gives the rule for $(EXTRACT): what Mondo takes in from the source, written
+# by the source's own code as JSON in the shape of the schema's SourceRelease (see
+# finalize.py). `make bundle` also needs its rule for the mirror.
+#
+# Either way linkml-owl renders <source>.owl from <source>.yaml. ROBOT is used only
+# inside the ODK image, for the metrics.
 
 COMPONENT_IRI := http://purl.obolibrary.org/obo/mondo/sources/$(SOURCE).owl
 
@@ -37,6 +47,7 @@ COMPAT := $(MONDO_SOURCE)/mondo-ingest
 
 TMP := tmp
 RELEASE := release
+EXTRACT := $(TMP)/$(SOURCE).extract.json
 TODAY := $(shell date +%Y-%m-%d)
 
 GENERATED_BY = $(shell git remote get-url origin 2>/dev/null || echo $(CURDIR))@$(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD -- || echo -dirty)
@@ -51,16 +62,6 @@ BUNDLE := $(CORE) $(RELEASE)/mirror-$(SOURCE).owl $(RELEASE)/mirror_signature-$(
 all: $(CORE)
 bundle: $(BUNDLE)
 
-$(SOURCE_FILE):
-	mkdir -p $(dir $@) $(TMP)
-	curl -sSfL -o $@.part $(SOURCE_URL)
-	mv $@.part $@
-	echo $(SOURCE_URL) > $(TMP)/source-url.txt
-
-refresh:
-	rm -f $(SOURCE_FILE) $(TMP)/source-url.txt
-	$(MAKE) all
-
 # ── <source>.yaml ─────────────────────────────────────────────────────────────
 # Resolve the schema's sssom_schema: import to the installed sssom-schema package
 # (pinned in mondo-source's pyproject.toml to the same version as the URL in the schema).
@@ -74,21 +75,44 @@ $(MODELS): $(SCHEMA) $(TMP)/importmap.json
 	uv run gen-pydantic --importmap $(TMP)/importmap.json $(SCHEMA) > $@.part
 	mv $@.part $@
 
-$(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $(SPARQL_FILES) $(MODELS) $(TMP)/importmap.json $(PREFIXES) $(PYTHON_SRC)
+# What both ways of building <source>.yaml give the command.
+RELEASE_ARGS = --prefixes $(PREFIXES) \
+	--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
+	$(if $(STRIP_BRACKETS),--strip-brackets) \
+	--set source_id=$(SOURCE) \
+	--set generated_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+	--set generated_by=$(GENERATED_BY) \
+	--output $(RELEASE)/$(SOURCE).yaml \
+	--metadata-output $(RELEASE)/$(SOURCE).metadata.yaml
+RELEASE_DEPS := $(MODELS) $(TMP)/importmap.json $(PREFIXES) $(PYTHON_SRC)
+
+ifdef SOURCE_FILE
+# An RDF source: downloaded, then extracted with SPARQL and finalized in one process.
+# The extract is left in $(EXTRACT), to look at.
+$(SOURCE_FILE):
+	mkdir -p $(dir $@) $(TMP)
+	curl -sSfL -o $@.part $(SOURCE_URL)
+	mv $@.part $@
+	echo $(SOURCE_URL) > $(TMP)/source-url.txt
+
+refresh:
+	rm -f $(SOURCE_FILE) $(TMP)/source-url.txt
+	$(MAKE) all
+
+$(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $(SPARQL_FILES) $(RELEASE_DEPS)
 	mkdir -p $(RELEASE)
 	uv run mondo-source assemble \
 		--ontology $(SOURCE_FILE) \
 		$(addprefix --sparql ,$(SPARQL)) \
-		--prefixes $(PREFIXES) \
-		--schema $(SCHEMA) --importmap $(TMP)/importmap.json \
-		$(if $(STRIP_BRACKETS),--strip-brackets) \
-		--set source_id=$(SOURCE) \
 		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
-		--set generated_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
-		--set generated_by=$(GENERATED_BY) \
-		--extract-output $(TMP)/$(SOURCE).extract.json \
-		--output $(RELEASE)/$(SOURCE).yaml \
-		--metadata-output $(RELEASE)/$(SOURCE).metadata.yaml
+		--extract-output $(EXTRACT) \
+		$(RELEASE_ARGS)
+else
+# Any other source: its own Makefile gives the rule for $(EXTRACT).
+$(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(EXTRACT) $(RELEASE_DEPS)
+	mkdir -p $(RELEASE)
+	uv run mondo-source finalize $(EXTRACT) $(RELEASE_ARGS)
+endif
 
 # ── Renderings of <source>.yaml ───────────────────────────────────────────────
 $(RELEASE)/$(SOURCE).sssom.tsv: $(RELEASE)/$(SOURCE).yaml $(PREFIXES) $(SSSOM_METADATA) $(PYTHON_SRC)
@@ -117,12 +141,14 @@ $(RELEASE)/component_signature-$(SOURCE).tsv: $(RELEASE)/$(SOURCE).owl $(COMPAT)
 # the OWL API (more memory than NCIT allows on a laptop) to add one ontology annotation
 # nothing in mondo-ingest reads; its readers use owl:versionIRI/versionInfo, which the
 # download has.
+ifdef SOURCE_FILE
 $(RELEASE)/mirror-$(SOURCE).owl: $(SOURCE_FILE)
 	mkdir -p $(RELEASE)
 ifeq ($(suffix $(SOURCE_FILE)),.owl)
 	cp $< $@
 else
 	uv run mondo-source rdfxml $< --output $@
+endif
 endif
 
 $(RELEASE)/mirror_signature-$(SOURCE).tsv: $(RELEASE)/mirror-$(SOURCE).owl $(COMPAT)/classes.sparql

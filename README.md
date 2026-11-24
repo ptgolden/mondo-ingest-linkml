@@ -18,15 +18,16 @@ This is not production code.
 
 ## Layout
 
-A uv workspace, laid out as the eventual repos would be:
+One Python package, `mondo-source`, and one directory per source:
 
 | Directory | What it is | Would become |
 |---|---|---|
-| `packages/mondo-source` | The shared package: the schema, the prefix map, the shared SPARQL, the Python (one `mondo-source` CLI), the make rules (`source.mk`), and files copied from mondo-ingest | A released package, or part of mondo-ingest |
+| `src/mondo_source` | The shared code and data: the schema, the prefix map, the shared SPARQL, the Python (one `mondo-source` CLI), the make rules (`source.mk`), and files copied from mondo-ingest | A released package, or part of mondo-ingest |
 | `sources/ordo` | ORDO's own: its Makefile settings, SPARQL and SSSOM metadata. [README](sources/ordo/README.md) | ORDO's source repo |
 | `sources/icd10who` | ICD10WHO's own, likewise. [README](sources/icd10who/README.md) | Part of mondo-ingest-icd10who |
 
-A source directory holds no Python. ORDO's is 7 SPARQL files; ICD10WHO's is 2.
+A source directory holds no Python, so it isn't a package: its Makefile runs the
+`mondo-source` CLI from the project it sits in. ORDO's is 7 SPARQL files; ICD10WHO's is 2.
 
 ## Running it
 
@@ -91,7 +92,7 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
     - every other `<slot>.rq` fills a multivalued slot (`synonyms.rq` → `Term.synonyms`);
     - a row with columns beyond `?id ?<slot>` is a nested object.
   - The shared queries read OBO-in-OWL: `terms`, `synonyms`, `parents`, `consider` and
-    `metadata` ([sparql/README.md](packages/mondo-source/src/mondo_source/sparql/README.md)).
+    `metadata` ([sparql/README.md](src/mondo_source/sparql/README.md)).
     Sources add their own for what has no OBO convention (ORDO's mappings,
     relationships, subsets), or replace a shared one (ICD10WHO's metadata).
   - Mondo's own additions are shared: `synonyms.rq` generates the label synonyms
@@ -128,9 +129,8 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
 ## Adding a source
 
 A directory under `sources/` with:
-- a `pyproject.toml` depending on `mondo-source`, and a `Makefile` setting `SOURCE`,
-  `SOURCE_URL`, `SOURCE_FILE` (RDF/XML as `.owl`, or Turtle) and `SSSOM_METADATA`, then
-  including `source.mk`;
+- a `Makefile` setting `SOURCE`, `SOURCE_URL`, `SOURCE_FILE` (RDF/XML as `.owl`, or
+  Turtle) and `SSSOM_METADATA`, then including `source.mk`;
 - `sparql/` with at least a scope update, plus whatever rewrites the source into OBO
   conventions and whatever queries it needs beyond the shared ones;
 - its SSSOM metadata;

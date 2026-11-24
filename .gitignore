@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 tmp/
 release/
-packages/mondo-source/src/mondo_source/datamodel.py
+src/mondo_source/datamodel.py

@@ -10,19 +10,6 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
-[manifest]
-members = [
-    "mondo-source",
-    "mondo-source-icd10who",
-    "mondo-source-ordo",
-]
-
-[manifest.dependency-groups]
-dev = [
-    { name = "pyright", specifier = ">=1.1.414" },
-    { name = "sssom", specifier = ">=0.4.17" },
-]
-
 [[package]]
 name = "alabaster"
 version = "1.0.0"
@@ -836,7 +823,7 @@ wheels = [
 [[package]]
 name = "mondo-source"
 version = "0.1.0"
-source = { editable = "packages/mondo-source" }
+source = { editable = "." }
 dependencies = [
     { name = "curies" },
     { name = "linkml" },
@@ -847,6 +834,12 @@ dependencies = [
     { name = "pyyaml" },
     { name = "sssom-schema" },
     { name = "typer" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "sssom" },
 ]
 
 [package.metadata]
@@ -862,27 +855,11 @@ requires-dist = [
     { name = "typer", specifier = ">=0.27.3" },
 ]
 
-[[package]]
-name = "mondo-source-icd10who"
-version = "0.1.0"
-source = { virtual = "sources/icd10who" }
-dependencies = [
-    { name = "mondo-source" },
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.414" },
+    { name = "sssom", specifier = ">=0.4.17" },
 ]
-
-[package.metadata]
-requires-dist = [{ name = "mondo-source", editable = "packages/mondo-source" }]
-
-[[package]]
-name = "mondo-source-ordo"
-version = "0.1.0"
-source = { virtual = "sources/ordo" }
-dependencies = [
-    { name = "mondo-source" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "mondo-source", editable = "packages/mondo-source" }]
 
 [[package]]
 name = "nodeenv"

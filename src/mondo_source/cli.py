@@ -32,7 +32,11 @@ StripBrackets = Annotated[
     bool, typer.Option("--strip-brackets", help="Add each label and exact synonym without its final bracketed part")
 ]
 SourceDownloadUrl = Annotated[
-    list[str], typer.Option("--source-download-url", help="A URL the source was downloaded from; repeatable")
+    list[str],
+    typer.Option(
+        "--source-download-url",
+        help="A URL the source was downloaded from, for the release's metadata; repeatable. Not one with a secret in it",
+    ),
 ]
 Set = Annotated[list[str], typer.Option("--set", help="Extra metadata, KEY=VALUE")]
 
@@ -54,7 +58,9 @@ def write_release(
     from mondo_source.problems import Problems
 
     schema_view = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
-    metadata = {**dict(s.split("=", 1) for s in set_), "source_download_urls": source_download_url}
+    metadata: dict[str, str | list[str]] = {**dict(s.split("=", 1) for s in set_)}
+    if source_download_url:
+        metadata["source_download_urls"] = source_download_url
     try:
         release = finalize(extract, load_converter(prefixes), schema_view, metadata, strip_brackets)
     except Problems as e:

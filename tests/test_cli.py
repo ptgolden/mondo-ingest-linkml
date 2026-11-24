@@ -73,6 +73,17 @@ def test_finalize_writes_the_release_and_its_metadata(tmp_path, release_options)
     ]
 
 
+def test_a_release_built_without_download_urls_has_none_in_its_metadata(tmp_path, release_options):
+    extract = tmp_path / "example.extract.json"
+    extract.write_text(json.dumps({"metadata": {"source_version": "1.0"}, "terms": []}))
+    without_urls = [option for option in release_options if "download" not in option and "example.org/" not in option]
+
+    result = run("finalize", str(extract), *without_urls)
+
+    assert result.exit_code == 0, result.output
+    assert "source_download_urls" not in yaml.safe_load((tmp_path / "example.metadata.yaml").read_text())
+
+
 def test_finalize_prints_the_problems_and_writes_nothing(tmp_path, release_options):
     extract = tmp_path / "example.extract.json"
     extract.write_text(json.dumps({"metadata": {"source_version": "1.0"}, "terms": [{"id": "No:1"}, {"id": "EX:2"}]}))

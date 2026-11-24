@@ -29,7 +29,8 @@
 #
 # A source that isn't RDF sets neither of those two, and sets:
 #
-#   SOURCE_URLS     every URL it is downloaded from, for the release's metadata
+#   SOURCE_URLS     optional. Every URL it is downloaded from, for the release's
+#                   metadata, which is published: never a URL with a key in it
 #
 # After including this file, its Makefile gives the rule for $(EXTRACT): what Mondo takes in from the source, written
 # by the source's own code as JSON in the shape of the schema's SourceRelease (see

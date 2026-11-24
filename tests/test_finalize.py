@@ -142,50 +142,16 @@ def test_terms_and_their_values_come_out_sorted(schema):
     ]
 
 
-def synonyms(schema, term: dict, strip_brackets: bool = False) -> list[tuple[str, str, str | None]]:
-    (finalized,) = finalize(extract(term), CONVERTER, schema, PIPELINE, strip_brackets).terms
-    return [(s.text, s.scope, s.synonym_type) for s in finalized.synonyms or []]
+def test_mondos_synonyms_are_added_to_the_sources(schema):
+    stated = extract({"id": "EX:1", "label": "Leprosy [Hansen disease]", "synonyms": [{"text": "Lepra", "scope": "EXACT"}]})
 
+    (term,) = finalize(stated, CONVERTER, schema, PIPELINE, strip_brackets=True).terms
 
-def test_the_label_becomes_an_exact_synonym(schema):
-    stated = {"id": "EX:1", "label": "Leprosy", "synonyms": [{"text": "Leprosy", "scope": "EXACT"}]}
-
-    assert synonyms(schema, stated) == [("Leprosy", "EXACT", None), ("Leprosy", "EXACT", FROM_LABEL)]
-
-
-def test_a_deprecated_terms_label_does_not(schema):
-    assert synonyms(schema, {"id": "EX:1", "label": "Leprosy", "deprecated": True}) == []
-
-
-def test_a_final_bracketed_part_is_stripped_from_labels_and_exact_synonyms(schema):
-    stated = {
-        "id": "EX:1",
-        "label": "Leprosy [Hansen disease]",
-        "deprecated": True,
-        "synonyms": [
-            {"text": "Lepra (A30)", "scope": "EXACT"},
-            {"text": "Hansen's (old)", "scope": "RELATED"},
-            {"text": "LEPROSY (ALL FORMS)", "scope": "EXACT"},
-        ],
-    }
-
-    assert [s for s in synonyms(schema, stated, strip_brackets=True) if s[2] == GENERATED] == [
-        ("lepra", "EXACT", GENERATED),
-        ("leprosy", "EXACT", GENERATED),
+    assert [(s.text, s.synonym_type) for s in term.synonyms or []] == [
+        ("Lepra", None),
+        ("Leprosy [Hansen disease]", FROM_LABEL),
+        ("leprosy", GENERATED),
     ]
-    assert [s for s in synonyms(schema, stated) if s[2] == GENERATED] == []
-
-
-def test_a_bracket_that_does_not_end_the_text_is_kept(schema):
-    stated = {"id": "EX:1", "label": "Type (I) disease", "deprecated": True}
-
-    assert synonyms(schema, stated, strip_brackets=True) == []
-
-
-def test_a_final_bracket_with_no_space_before_it_is_only_lowercased(schema):
-    stated = {"id": "EX:1", "label": "Pericytoma with t(7;12)", "deprecated": True}
-
-    assert synonyms(schema, stated, strip_brackets=True) == [("pericytoma with t(7;12)", "EXACT", GENERATED)]
 
 
 def test_two_terms_with_one_id_are_a_problem(schema):

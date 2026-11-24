@@ -17,6 +17,7 @@ FINAL_BRACKETED_PART = re.compile(r" [\[(].*[)\]]\Z")
 
 
 def generated(text: str, synonym_type: str, identifiers: Identifiers) -> Synonym:
+    """An EXACT synonym of one of Mondo's two types, given as its IRI."""
     return Synonym(text=text, scope=SynonymScope.EXACT, synonym_type=identifiers.curie(synonym_type, SYNONYM_TYPE))
 
 

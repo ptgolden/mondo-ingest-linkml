@@ -102,16 +102,18 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
   - Queries do no prefix handling. They return IRIs as IRIs, and identifiers a source only
     has as strings (ORDO's xrefs) as literals typed `xsd:anyURI`.
 - **The Python leans on libraries**, and none of it is source-specific.
-  - `assemble.py` (about 80 lines) groups query rows by term and hands them over:
-    - identifiers to `curies`, with `prefixes.yaml` as an extended prefix map. IRIs are
-      compressed, and `anyURI` literals are standardised, so ORDO's spellings (`ICD-10`,
-      `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`;
-    - everything else to the Pydantic models generated from the schema (`gen-pydantic`,
-      into the package at build time, not committed). Building them coerces types and
-      checks required slots, CURIE patterns and unknown fields.
-
-    Its one check of its own: a term with two values for a single-valued slot fails,
-    because keeping either would silently drop the other.
+  - `extract.py` runs the queries and groups their rows by term into an *extract*: the
+    source's terms, and what the source says about itself. `mondo-source assemble`
+    leaves it in `tmp/<source>.extract.json`, to look at.
+    - Identifiers go to `curies`, with `prefixes.yaml` as an extended prefix map. IRIs
+      are compressed, and `anyURI` literals are standardised, so ORDO's spellings
+      (`ICD-10`, `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`.
+    - Its one check of its own: a term with two values for a single-valued slot fails,
+      because keeping either would silently drop the other.
+  - `finalize.py` turns an extract into the release, adding the build's metadata.
+  - Both use the Pydantic models generated from the schema (`gen-pydantic`, into the
+    package at build time, not committed). Building them coerces types and checks
+    required slots, CURIE patterns and unknown fields.
   - `sssom.py` flattens the mappings.
   - `render_owl.py` renders the YAML as OWL with linkml-owl, which reads `owl` annotations
     in the schema: an axiom type per slot, and OWL functional-syntax templates for
@@ -156,7 +158,7 @@ A directory under `sources/` with:
   - The faithful 25 MB YAML of the original approach took 10.8 s to parse with PyYAML's C
     loader, 58.8 s with ruamel (YAML 1.2), and 0.23 s as JSON.
   - The gene alias `2E4` is a string under YAML 1.1 (PyYAML) but the float `20000.0` under
-    YAML 1.2. The assembler quotes such strings.
+    YAML 1.2. `yamlio.py` quotes such strings.
 - **CURIE syntax needs an explicit pattern.** `uriorcurie` alone is unconstrained in JSON
   Schema and Pydantic, so the schema puts a pattern on each CURIE slot (one YAML anchor).
   It has to be on the slots: gen-pydantic ignores patterns declared on a type.

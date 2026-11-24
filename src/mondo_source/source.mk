@@ -83,6 +83,7 @@ $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $
 		--set schema_version=$(SCHEMA_VERSION) \
 		--set generated_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 		--set generated_by=$(GENERATED_BY) \
+		--extract-output $(TMP)/$(SOURCE).extract.json \
 		--output $(RELEASE)/$(SOURCE).yaml \
 		--metadata-output $(RELEASE)/$(SOURCE).metadata.yaml
 

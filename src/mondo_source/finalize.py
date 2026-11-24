@@ -75,6 +75,9 @@ def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
         term = Term.model_validate(identifiers.to_curies(stated))
     except pydantic.ValidationError as e:
         return [*problems, *rejected(stated_id, e)]
+    # The schema can't say this of label: see the slot's description there.
+    if term.label is None and not term.deprecated:
+        problems.append(Problem(stated_id, "label", "(missing)", "required unless the term is deprecated"))
     return problems or term
 
 

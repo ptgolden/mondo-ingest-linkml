@@ -13,7 +13,7 @@ They assume two things of the source's updates (`*.ru`, which run first):
 
 | Query | Slot | Reads |
 |---|---|---|
-| `terms.rq` | label, deprecated, definition, replaced_by | `rdfs:label`, `owl:deprecated true`, IAO:0000115, IAO:0100001 |
+| `terms.rq` | label, deprecated, definition, replaced_by | `rdfs:label` (a class without one is still a term), `owl:deprecated true`, IAO:0000115, IAO:0100001 |
 | `synonyms.rq` | synonyms | `oboInOwl:has{Exact,Related,Broad,Narrow}Synonym` and their `hasSynonymType`. The two synonyms Mondo generates from labels are added by `finalize.py` |
 | `parents.rq` | parents | named `rdfs:subClassOf` parents that are in scope |
 | `consider.rq` | consider | `oboInOwl:consider` |

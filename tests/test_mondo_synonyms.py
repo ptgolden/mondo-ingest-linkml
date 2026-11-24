@@ -50,3 +50,9 @@ def test_a_bracket_that_does_not_end_the_text_is_kept():
 
 def test_a_final_bracket_with_no_space_before_it_is_only_lowercased():
     assert bracket_stripped(term("Pericytoma with t(7;12)")) == {"pericytoma with t(7;12)"}
+
+
+def test_a_term_without_a_label_gets_only_what_its_exact_synonyms_give():
+    unnamed = Term(id="EX:1", deprecated=True, synonyms=[Synonym(text="Lepra (A30)", scope=SynonymScope.EXACT)])
+
+    assert added(unnamed, strip_brackets=True) == [("lepra", "EXACT", GENERATED)]

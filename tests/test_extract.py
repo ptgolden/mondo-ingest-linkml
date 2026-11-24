@@ -114,11 +114,13 @@ def test_the_shared_queries_read_obo_in_owl_for_classes_marked_in_scope(tmp_path
             obo:IAO_0100001 ex:1 ;
             oio:consider ex:1 .
 
+        ex:3 a owl:Class ; ms:in_scope true ; owl:deprecated true .
+
         ex:9 a owl:Class ; rdfs:label "not marked in scope" .
     """
 
     extracted = extract(source(tmp_path, turtle), [SHARED])
-    one, two = sorted(extracted.terms, key=lambda term: str(term["id"]))
+    one, two, three = sorted(extracted.terms, key=lambda term: str(term["id"]))
 
     assert extracted.metadata == {"source_version": "1.0", "source_version_iri": "https://example.org/onto/1.0"}
     assert {**one, "synonyms": sorted(one["synonyms"], key=str)} == {
@@ -138,3 +140,4 @@ def test_the_shared_queries_read_obo_in_owl_for_classes_marked_in_scope(tmp_path
         "parents": [f"{EX}1"],
         "consider": [f"{EX}1"],
     }
+    assert three == {"id": f"{EX}3", "deprecated": "true"}

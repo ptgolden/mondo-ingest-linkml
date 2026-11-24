@@ -141,6 +141,7 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
   - a term has conflicting single-valued slots (this one stops the extraction);
   - an identifier has no prefix in the map;
   - the models reject anything;
+  - a term that isn't deprecated has no label;
   - two terms have the same id, or a term's parent isn't a term of the release.
 
   All but the first are collected over the whole extract and printed together, a line
@@ -196,6 +197,13 @@ knows. `mondo-source finalize` does to it what it does to an RDF source's extrac
   - The SSSOM schema has no PURL for its YAML, so the import is pinned to the v1.0.0 GitHub
     URL, and redirected to the installed package with a LinkML importmap.
     `linkml-validate` has no importmap option and fetches the URL.
+- **A deprecated term needn't have a label.** `label` is required of every term that
+  isn't deprecated, and of no other. OMIM's moved entries and OncoTree's precursor
+  codes are identifiers the source has retired without a name, and there is nothing to
+  take one from. Mondo keeps its own merged terms that way
+  ([mondo#889](https://github.com/monarch-initiative/mondo/issues/889)). The schema
+  can't say "unless deprecated", so `finalize.py` checks it; the slot's description in
+  the schema says so.
 - **Timestamps.** ORDO publishes `dcterms:modified` without a timezone, so `source_date` is
   kept as a verbatim string.
 

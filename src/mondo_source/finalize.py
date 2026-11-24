@@ -17,6 +17,7 @@ release doesn't depend on the order a source gives things in.
 """
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 import curies
 import pydantic
@@ -54,22 +55,32 @@ def identifier_slots(schema: SchemaView, class_name: str, path: SlotPath = ()) -
             yield here
 
 
-def standardise(
-    value: pydantic.JsonValue, path: SlotPath, identifiers: frozenset[SlotPath], converter: curies.Converter
-) -> pydantic.JsonValue:
-    """value, found at path in a term, with its identifiers as canonical CURIEs."""
-    match value:
-        case dict():
-            return {slot: standardise(v, (*path, slot), identifiers, converter) for slot, v in value.items()}
-        case list():
-            return [standardise(v, path, identifiers, converter) for v in value]
-        case str() if path in identifiers:
-            curie = converter.compress_or_standardize(value)
-            if curie is None:
-                raise ValueError(f"{'.'.join(path)}: no prefix in the prefix map for {value!r}")
-            return curie
-        case _:
-            return value
+@dataclass(frozen=True)
+class Identifiers:
+    """The slots that hold identifiers, and the prefix map their CURIEs come from."""
+
+    slots: frozenset[SlotPath]
+    converter: curies.Converter
+
+    def to_curies(self, stated: pydantic.JsonValue, path: SlotPath = ()) -> pydantic.JsonValue:
+        """A stated term, or the part of one at path, with each identifier as its
+        canonical CURIE."""
+        match stated:
+            case dict():
+                return {slot: self.to_curies(value, (*path, slot)) for slot, value in stated.items()}
+            case list():
+                return [self.to_curies(value, path) for value in stated]
+            case str() if path in self.slots:
+                return self.curie(stated, path)
+            case _:
+                return stated
+
+    def curie(self, identifier: str, slot: SlotPath) -> str:
+        """The canonical CURIE for an IRI, or for a CURIE in any spelling of its prefix."""
+        curie = self.converter.compress_or_standardize(identifier)
+        if curie is None:
+            raise ValueError(f"{'.'.join(slot)}: no prefix in the prefix map for {identifier!r}")
+        return curie
 
 
 def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ...]:
@@ -97,11 +108,11 @@ def finalize(
     extract: Extract, converter: curies.Converter, schema: SchemaView, pipeline_metadata: dict[str, str]
 ) -> SourceRelease:
     """pipeline_metadata: the ReleaseMetadata slots the build knows, not the source."""
-    identifiers = frozenset(identifier_slots(schema, "Term"))
+    identifiers = Identifiers(frozenset(identifier_slots(schema, "Term")), converter)
     terms = []
     for stated in extract.terms:
         try:
-            term = Term.model_validate(standardise(stated, (), identifiers, converter))
+            term = Term.model_validate(identifiers.to_curies(stated))
         except ValueError as e:
             raise ValueError(f"{stated.get('id')}: {e}") from e
         sort_values(term)

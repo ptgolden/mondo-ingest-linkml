@@ -41,7 +41,8 @@ def release_options(tmp_path, schema_file, importmap_file) -> list[str]:
         *("--output", str(tmp_path / "example.yaml")),
         *("--metadata-output", str(tmp_path / "example.metadata.yaml")),
         *("--set", "source_id=example"),
-        *("--set", "source_download_url=https://example.org/onto.ttl"),
+        *("--source-download-url", "https://example.org/onto.ttl"),
+        *("--source-download-url", "https://example.org/versions.json"),
         *("--set", "generated_at=2026-01-01T00:00:00Z"),
         *("--set", "generated_by=tests"),
     ]
@@ -66,6 +67,10 @@ def test_finalize_writes_the_release_and_its_metadata(tmp_path, release_options)
     ]
     assert yaml.safe_load((tmp_path / "example.metadata.yaml").read_text()) == release["metadata"]
     assert release["metadata"]["source_id"] == "example"
+    assert release["metadata"]["source_download_urls"] == [
+        "https://example.org/onto.ttl",
+        "https://example.org/versions.json",
+    ]
 
 
 def test_finalize_prints_the_problems_and_writes_nothing(tmp_path, release_options):

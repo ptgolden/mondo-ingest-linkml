@@ -164,6 +164,7 @@ gives the rule for `$(EXTRACT)` instead: a JSON file its own code writes, with
 `metadata` (what the source says about itself) and `terms`, each in the shape of the
 schema's `Term`. Identifiers may be IRIs or CURIEs in any spelling `prefixes.yaml`
 knows. `mondo-source finalize` does to it what it does to an RDF source's extract.
+The URLs the source is downloaded from go in `SOURCE_URLS`, for the release's metadata.
 
 ## Findings about the approach
 

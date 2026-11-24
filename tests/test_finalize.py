@@ -6,7 +6,7 @@ from mondo_source.problems import Problem, Problems
 
 PIPELINE = {
     "source_id": "example",
-    "source_download_url": "https://example.org/example.owl",
+    "source_download_urls": ["https://example.org/example.owl"],
     "generated_at": "2026-01-01T00:00:00Z",
     "generated_by": "tests",
 }

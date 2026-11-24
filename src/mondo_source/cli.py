@@ -31,6 +31,9 @@ MetadataOutput = Annotated[Path | None, typer.Option()]
 StripBrackets = Annotated[
     bool, typer.Option("--strip-brackets", help="Add each label and exact synonym without its final bracketed part")
 ]
+SourceDownloadUrl = Annotated[
+    list[str], typer.Option("--source-download-url", help="A URL the source was downloaded from; repeatable")
+]
 Set = Annotated[list[str], typer.Option("--set", help="Extra metadata, KEY=VALUE")]
 
 
@@ -42,6 +45,7 @@ def write_release(
     output: Path,
     metadata_output: Path | None,
     strip_brackets: bool,
+    source_download_url: list[str],
     set_: list[str],
 ):
     """Finalize an extract and write the release, and its metadata again on its own if
@@ -50,7 +54,7 @@ def write_release(
     from mondo_source.problems import Problems
 
     schema_view = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
-    metadata = dict(s.split("=", 1) for s in set_)
+    metadata = {**dict(s.split("=", 1) for s in set_), "source_download_urls": source_download_url}
     try:
         release = finalize(extract, load_converter(prefixes), schema_view, metadata, strip_brackets)
     except Problems as e:
@@ -74,6 +78,7 @@ def assemble(
     metadata_output: MetadataOutput = None,
     extract_output: Annotated[Path | None, typer.Option(help="Where to leave the extract (JSON), to look at")] = None,
     strip_brackets: StripBrackets = False,
+    source_download_url: SourceDownloadUrl = [],
     set_: Set = [],
 ):
     """Build a SourceRelease YAML from an RDF source: extract it with SPARQL, then finalize."""
@@ -85,7 +90,9 @@ def assemble(
         raise SystemExit(f"no extract: {e}")
     if extract_output:
         extract_output.write_text(extracted.model_dump_json(indent=1))
-    write_release(extracted, prefixes, schema, importmap, output, metadata_output, strip_brackets, set_)
+    write_release(
+        extracted, prefixes, schema, importmap, output, metadata_output, strip_brackets, source_download_url, set_
+    )
 
 
 @app.command("finalize")
@@ -97,6 +104,7 @@ def finalize(
     importmap: Importmap = None,
     metadata_output: MetadataOutput = None,
     strip_brackets: StripBrackets = False,
+    source_download_url: SourceDownloadUrl = [],
     set_: Set = [],
 ):
     """Build a SourceRelease YAML from an extract: for a source that isn't RDF."""
@@ -106,7 +114,9 @@ def finalize(
         stated = Extract.model_validate_json(extract.read_text())
     except pydantic.ValidationError as e:
         raise SystemExit(f"{extract} is not an extract: {e}")
-    write_release(stated, prefixes, schema, importmap, output, metadata_output, strip_brackets, set_)
+    write_release(
+        stated, prefixes, schema, importmap, output, metadata_output, strip_brackets, source_download_url, set_
+    )
 
 
 @app.command("select")

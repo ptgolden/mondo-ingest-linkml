@@ -27,8 +27,11 @@
 # whose files replace ones of the same name. Oxigraph's store is on disk, so even NCIT
 # fits in a couple of GB.
 #
-# A source that isn't RDF sets neither of those two. After including this file, its
-# Makefile gives the rule for $(EXTRACT): what Mondo takes in from the source, written
+# A source that isn't RDF sets neither of those two, and sets:
+#
+#   SOURCE_URLS     every URL it is downloaded from, for the release's metadata
+#
+# After including this file, its Makefile gives the rule for $(EXTRACT): what Mondo takes in from the source, written
 # by the source's own code as JSON in the shape of the schema's SourceRelease (see
 # finalize.py). `make bundle` also needs its rule for the mirror.
 #
@@ -104,14 +107,16 @@ $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $
 	uv run mondo-source assemble \
 		--ontology $(SOURCE_FILE) \
 		$(addprefix --sparql ,$(SPARQL)) \
-		--set source_download_url=$$(cat $(TMP)/source-url.txt) \
+		--source-download-url $$(cat $(TMP)/source-url.txt) \
 		--extract-output $(EXTRACT) \
 		$(RELEASE_ARGS)
 else
 # Any other source: its own Makefile gives the rule for $(EXTRACT).
 $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(EXTRACT) $(RELEASE_DEPS)
 	mkdir -p $(RELEASE)
-	uv run mondo-source finalize $(EXTRACT) $(RELEASE_ARGS)
+	uv run mondo-source finalize $(EXTRACT) \
+		$(addprefix --source-download-url ,$(SOURCE_URLS)) \
+		$(RELEASE_ARGS)
 endif
 
 # ── Renderings of <source>.yaml ───────────────────────────────────────────────

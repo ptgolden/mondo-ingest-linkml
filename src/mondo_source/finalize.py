@@ -81,7 +81,7 @@ def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
     return problems or term
 
 
-def metadata_from(stated: dict[str, str | None]) -> ReleaseMetadata | list[Problem]:
+def metadata_from(stated: dict[str, str | list[str] | None]) -> ReleaseMetadata | list[Problem]:
     """The release's metadata, or what is wrong with it."""
     try:
         return ReleaseMetadata.model_validate(stated)
@@ -132,13 +132,14 @@ def finalize(
     extract: Extract,
     converter: curies.Converter,
     schema: SchemaView,
-    pipeline_metadata: dict[str, str],
+    pipeline_metadata: dict[str, str | list[str]],
     strip_brackets: bool = False,
 ) -> SourceRelease:
     """The release an extract makes, or Problems.
 
     pipeline_metadata is the ReleaseMetadata slots that the build knows and the source
-    doesn't (source_id, generated_at, ...); schema_version is the schema's own.
+    doesn't (source_id, source_download_urls, generated_at, ...); schema_version is
+    the schema's own.
     strip_brackets is whether Mondo takes this source's bracket-stripped names
     (mondo_synonyms.py).
     """

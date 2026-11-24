@@ -90,9 +90,13 @@ classes:
       source_license:
         range: uri
         slot_uri: dcterms:license
-      source_download_url:
-        description: The URL this release was actually built from.
+      source_download_urls:
+        description: >-
+          The URLs this release was actually built from: one for a source that is
+          a single file, several for one put together from several (OMIM's five
+          files).
         range: uri
+        multivalued: true
         required: true
       schema_version:
         description: Version of this schema the release was validated against.

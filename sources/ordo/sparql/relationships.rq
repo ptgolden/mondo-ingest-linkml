@@ -27,4 +27,3 @@ WHERE {
   FILTER(STRSTARTS(STR(?x), "HGNC:"))
   BIND(STR(?x) AS ?target)
 }
-ORDER BY ?id ?predicate ?target

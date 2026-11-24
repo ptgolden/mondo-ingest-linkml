@@ -46,4 +46,3 @@ WHERE {
   # (e.g. "ICD-11: 4A6Y"); mondo-ingest's fix_xref_prefixes.ru meant to strip them.
   BIND(REPLACE(STR(?x), " ", "") AS ?object_id)
 }
-ORDER BY ?id ?object_id ?predicate_id ?comment

@@ -10,8 +10,8 @@ override mondo-source's shared queries. Each query fills one part of the extract
   <slot>.rq     the multivalued Term slot <slot>, one value per row, keyed by ?id;
                 a row with columns besides ?id and ?<slot> is a nested object
 
-Rows keep their query order (ORDER BY). An IRI is kept as the IRI and a literal as its
-lexical form: finalize.py standardises the identifiers.
+An IRI is kept as the IRI and a literal as its lexical form: finalize.py standardises
+the identifiers. The order of the rows doesn't matter: it sorts, too.
 """
 
 from collections import defaultdict

@@ -101,7 +101,8 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
   - Mondo's own additions are shared: `synonyms.rq` generates the label synonyms
     (`mondo:GENERATED_FROM_LABEL`) and the bracket-stripped ones (`mondo:GENERATED`) for
     every source, so the YAML shows what Mondo added rather than the source said.
-  - Each query ends in an `ORDER BY`, which is what makes the output deterministic.
+  - Queries don't order their results. `finalize.py` sorts the terms and the values of
+    each multivalued slot, which is what makes the output deterministic.
   - Queries do no prefix handling. They return IRIs as IRIs, and identifiers a source only
     has as strings (ORDO's xrefs) as those strings.
 - **The Python leans on libraries**, and none of it is source-specific.
@@ -115,7 +116,9 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
       IRI is compressed and a CURIE standardised, so ORDO's spellings (`ICD-10`, `MeSH`,
       `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`. Which slots hold
       identifiers is read from the schema;
-    - the build's metadata is added to the source's own.
+    - the build's metadata is added to the source's own;
+    - terms are sorted by id, and each multivalued slot's values among themselves
+      (mappings by object, then predicate).
   - Both use the Pydantic models generated from the schema (`gen-pydantic`, into the
     package at build time, not committed). Building them coerces types and checks
     required slots, CURIE patterns and unknown fields.

@@ -11,6 +11,9 @@ canonical CURIE (ORDO's "ICD-10:" and "MeSH:" become "ICD10:" and "MESH:"). The 
 says which slots hold identifiers. Each term is then built as the Pydantic model
 generated from the schema (datamodel.py), which checks types, required slots, CURIE
 patterns and unknown slots.
+
+Terms are sorted by id, and the values of each multivalued slot are sorted, so the
+release doesn't depend on the order a source gives things in.
 """
 
 from collections.abc import Iterator
@@ -19,7 +22,7 @@ import curies
 import pydantic
 from linkml_runtime.utils.schemaview import SchemaView
 
-from mondo_source.datamodel import ReleaseMetadata, SourceRelease, Term
+from mondo_source.datamodel import ReleaseMetadata, Relationship, SourceRelease, Synonym, Term, TermMapping
 
 type SlotPath = tuple[str, ...]
 """A slot of Term, or of an object nested in one: ("parents",), ("mappings", "object_id")."""
@@ -69,6 +72,27 @@ def standardise(
             return value
 
 
+def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ...]:
+    """Where a value of a multivalued slot of Term goes among the others."""
+    match value:
+        case str():
+            return (value,)
+        case Synonym():
+            return (value.text, value.scope, value.synonym_type or "")
+        case Relationship():
+            return (value.predicate, value.target)
+        case TermMapping():
+            # By object, then predicate; the rest only so that the order is total.
+            return (value.object_id, value.predicate_id or "", value.model_dump_json())
+
+
+def sort_values(term: Term) -> None:
+    for slot in Term.model_fields:
+        values = getattr(term, slot)
+        if isinstance(values, list):
+            values.sort(key=sort_key)
+
+
 def finalize(
     extract: Extract, converter: curies.Converter, schema: SchemaView, pipeline_metadata: dict[str, str]
 ) -> SourceRelease:
@@ -77,9 +101,11 @@ def finalize(
     terms = []
     for stated in extract.terms:
         try:
-            terms.append(Term.model_validate(standardise(stated, (), identifiers, converter)))
+            term = Term.model_validate(standardise(stated, (), identifiers, converter))
         except ValueError as e:
             raise ValueError(f"{stated.get('id')}: {e}") from e
+        sort_values(term)
+        terms.append(term)
 
     metadata = ReleaseMetadata.model_validate({**extract.metadata, **pipeline_metadata})
-    return SourceRelease(metadata=metadata, terms=terms)
+    return SourceRelease(metadata=metadata, terms=sorted(terms, key=lambda term: term.id))

@@ -7,4 +7,3 @@ WHERE {
       rdfs:subClassOf ?parents .
   ?parents <https://w3id.org/monarch-initiative/mondo-source/in_scope> ?pin .
 }
-ORDER BY ?id ?parents

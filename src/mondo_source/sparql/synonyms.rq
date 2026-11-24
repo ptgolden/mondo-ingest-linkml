@@ -43,4 +43,3 @@ WHERE {
     BIND(mondo:GENERATED AS ?synonym_type)
   }
 }
-ORDER BY ?id ?text ?scope ?synonym_type

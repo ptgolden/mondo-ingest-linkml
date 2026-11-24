@@ -6,4 +6,3 @@ WHERE {
       oio:consider ?consider .
   FILTER(isIRI(?consider))
 }
-ORDER BY ?id ?consider

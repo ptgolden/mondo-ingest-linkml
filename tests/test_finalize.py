@@ -19,6 +19,8 @@ CONVERTER = curies.Converter.from_extended_prefix_map(
     ]
 )
 
+JUSTIFICATION = "semapv:ManualMappingCuration"
+
 
 def extract(*terms: dict) -> Extract:
     return Extract.model_validate({"metadata": {"source_version": "1.0"}, "terms": list(terms)})
@@ -68,3 +70,42 @@ def test_an_unknown_prefix_fails_naming_the_term_and_the_slot(schema):
 
     with pytest.raises(ValueError, match=r"EX:1: parents: .*'Unknown:2'"):
         finalize(stated, CONVERTER, schema, PIPELINE)
+
+
+def test_terms_and_their_values_come_out_sorted(schema):
+    stated = extract(
+        {
+            "id": "EX:2",
+            "label": "two",
+            "parents": ["EX:3", "EX:1"],
+            "synonyms": [
+                {"text": "b", "scope": "EXACT"},
+                {"text": "a", "scope": "RELATED"},
+                {"text": "a", "scope": "EXACT", "synonym_type": "EX:type"},
+                {"text": "a", "scope": "EXACT"},
+            ],
+            "mappings": [
+                {"predicate_id": "skos:narrowMatch", "object_id": "EX:8", "mapping_justification": JUSTIFICATION},
+                {"predicate_id": "skos:exactMatch", "object_id": "EX:9", "mapping_justification": JUSTIFICATION},
+                {"predicate_id": "skos:exactMatch", "object_id": "EX:8", "mapping_justification": JUSTIFICATION},
+            ],
+        },
+        {"id": "EX:1", "label": "one"},
+        {"id": "EX:3", "label": "three"},
+    )
+
+    one, two, three = finalize(stated, CONVERTER, schema, PIPELINE).terms
+
+    assert (one.id, two.id, three.id) == ("EX:1", "EX:2", "EX:3")
+    assert two.parents == ["EX:1", "EX:3"]
+    assert [(s.text, s.scope, s.synonym_type) for s in two.synonyms or []] == [
+        ("a", "EXACT", None),
+        ("a", "EXACT", "EX:type"),
+        ("a", "RELATED", None),
+        ("b", "EXACT", None),
+    ]
+    assert [(m.object_id, m.predicate_id) for m in two.mappings or []] == [
+        ("EX:8", "skos:exactMatch"),
+        ("EX:8", "skos:narrowMatch"),
+        ("EX:9", "skos:exactMatch"),
+    ]

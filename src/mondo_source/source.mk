@@ -73,8 +73,7 @@ bundle: $(BUNDLE)
 # (pinned in mondo-source's pyproject.toml to the same version as the URL in the schema).
 $(TMP)/importmap.json:
 	mkdir -p $(TMP)
-	uv run python -c 'import json, pathlib, sssom_schema; \
-		print(json.dumps({"sssom_schema:": str(pathlib.Path(sssom_schema.__file__).parent / "schema") + "/"}))' > $@
+	uv run python -m mondo_source.importmap > $@
 
 # Pydantic models generated from the schema, into the package; not committed.
 $(MODELS): $(SCHEMA) $(TMP)/importmap.json

@@ -47,8 +47,7 @@ SCHEMA := $(MONDO_SOURCE)/schema/mondo_source.yaml
 PREFIXES := $(MONDO_SOURCE)/prefixes.yaml
 SPARQL := $(MONDO_SOURCE)/sparql sparql
 SPARQL_FILES = $(wildcard $(addsuffix /*.ru,$(SPARQL)) $(addsuffix /*.rq,$(SPARQL)))
-MODELS := $(MONDO_SOURCE)/datamodel.py
-PYTHON_SRC := $(filter-out $(MODELS),$(wildcard $(MONDO_SOURCE)/*.py))
+PYTHON_SRC := $(wildcard $(MONDO_SOURCE)/*.py)
 COMPAT := $(MONDO_SOURCE)/mondo-ingest
 
 TMP := tmp
@@ -73,13 +72,7 @@ bundle: $(BUNDLE)
 # (pinned in mondo-source's pyproject.toml to the same version as the URL in the schema).
 $(TMP)/importmap.json:
 	mkdir -p $(TMP)
-	uv run python -c 'import json, pathlib, sssom_schema; \
-		print(json.dumps({"sssom_schema:": str(pathlib.Path(sssom_schema.__file__).parent / "schema") + "/"}))' > $@
-
-# Pydantic models generated from the schema, into the package; not committed.
-$(MODELS): $(SCHEMA) $(TMP)/importmap.json
-	uv run gen-pydantic --importmap $(TMP)/importmap.json $(SCHEMA) > $@.part
-	mv $@.part $@
+	uv run python -m mondo_source.importmap > $@
 
 # What both ways of building <source>.yaml give the command.
 RELEASE_ARGS = --prefixes $(PREFIXES) \
@@ -90,7 +83,7 @@ RELEASE_ARGS = --prefixes $(PREFIXES) \
 	--set generated_by=$(GENERATED_BY) \
 	--output $(RELEASE)/$(SOURCE).yaml \
 	--metadata-output $(RELEASE)/$(SOURCE).metadata.yaml
-RELEASE_DEPS := $(MODELS) $(TMP)/importmap.json $(PREFIXES) $(PYTHON_SRC)
+RELEASE_DEPS := $(TMP)/importmap.json $(PREFIXES) $(PYTHON_SRC)
 
 ifdef SOURCE_FILE
 # An RDF source: downloaded, then extracted with SPARQL and finalized in one process.
@@ -200,4 +193,4 @@ validate: $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).sssom.tsv
 	uv run sssom validate $(RELEASE)/$(SOURCE).sssom.tsv
 
 clean:
-	rm -rf $(TMP)/semsql $(RELEASE) $(MODELS)
+	rm -rf $(TMP)/semsql $(RELEASE)

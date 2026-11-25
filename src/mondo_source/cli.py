@@ -2,26 +2,22 @@
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 import pydantic
 import typer
 from linkml_runtime.utils.schemaview import SchemaView
 
 from mondo_source import rdfstore, render_owl, sssom
+from mondo_source.extract import extract
+from mondo_source.finalize import Extract, finalize
 from mondo_source.prefixes import load_converter
+from mondo_source.problems import Problems
 from mondo_source.yamlio import dump_yaml
-
-if TYPE_CHECKING:
-    from mondo_source.finalize import Extract
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 app.command("sssom")(sssom.main)
 app.command("render-owl")(render_owl.main)
-
-# `assemble` and `finalize` import extract.py and finalize.py when they run, not here:
-# those import datamodel.py, which make generates, and `data-dir` has to work before
-# it exists.
 
 Prefixes = Annotated[Path, typer.Option(help="Extended prefix map (YAML) every identifier must use")]
 Schema = Annotated[Path, typer.Option()]
@@ -42,7 +38,7 @@ Set = Annotated[list[str], typer.Option("--set", help="Extra metadata, KEY=VALUE
 
 
 def write_release(
-    extract: "Extract",
+    extract: Extract,
     prefixes: Path,
     schema: Path,
     importmap: Path | None,
@@ -54,9 +50,6 @@ def write_release(
 ):
     """Finalize an extract and write the release, and its metadata again on its own if
     asked. If the extract has problems, print them and write nothing."""
-    from mondo_source.finalize import finalize
-    from mondo_source.problems import Problems
-
     schema_view = SchemaView(str(schema), importmap=json.loads(importmap.read_text()) if importmap else None)
     metadata: dict[str, str | list[str]] = {**dict(s.split("=", 1) for s in set_)}
     if source_download_url:
@@ -72,7 +65,7 @@ def write_release(
 
 
 @app.command("assemble")
-def assemble(
+def assemble_command(
     ontology: Annotated[Path, typer.Option(help="The source ontology (RDF/XML or Turtle, by extension)")],
     sparql: Annotated[
         list[Path], typer.Option(help="Directory of SPARQL updates (*.ru) and queries (*.rq); repeatable, later wins")
@@ -88,8 +81,6 @@ def assemble(
     set_: Set = [],
 ):
     """Build a SourceRelease YAML from an RDF source: extract it with SPARQL, then finalize."""
-    from mondo_source.extract import extract
-
     try:
         extracted = extract(ontology, sparql)
     except ValueError as e:
@@ -102,7 +93,7 @@ def assemble(
 
 
 @app.command("finalize")
-def finalize(
+def finalize_command(
     extract: Annotated[Path, typer.Argument(help="An extract (JSON), as a source's own code wrote it")],
     prefixes: Prefixes,
     schema: Schema,
@@ -114,8 +105,6 @@ def finalize(
     set_: Set = [],
 ):
     """Build a SourceRelease YAML from an extract: for a source that isn't RDF."""
-    from mondo_source.finalize import Extract
-
     try:
         stated = Extract.model_validate_json(extract.read_text())
     except pydantic.ValidationError as e:

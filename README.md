@@ -43,8 +43,8 @@ make validate   # linkml-validate <source>.yaml; sssom validate <source>.sssom.t
 make refresh    # re-download the source, then build
 ```
 
-`uv run pytest`, at the top of the repo, runs the tests. They need the Pydantic models
-generated from the schema, and generate them if the schema is the newer.
+At the top of the repo, `make test` runs the tests, and `make models` regenerates the
+Pydantic models after a change to the schema.
 
 Outputs, in the source's `release/`:
 
@@ -125,9 +125,10 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
     - the build's metadata is added to the source's own;
     - terms are sorted by id, and each multivalued slot's values among themselves
       (mappings by object, then predicate).
-  - Both use the Pydantic models generated from the schema (`gen-pydantic`, into the
-    package at build time, not committed). Building them coerces types and checks
-    required slots, CURIE patterns and unknown fields.
+  - Both use the Pydantic models generated from the schema with `gen-pydantic`.
+    Building a term as one coerces types and checks required slots, CURIE patterns and
+    unknown fields. The models are committed (`datamodel.py`), so that a source's own
+    code can import them; a test fails while they don't match the schema.
   - `sssom.py` flattens the mappings.
   - `render_owl.py` renders the YAML as OWL with linkml-owl, which reads `owl` annotations
     in the schema: an axiom type per slot, and OWL functional-syntax templates for

@@ -105,7 +105,7 @@ def test_a_term_without_a_label_is_a_problem_unless_it_is_deprecated(schema):
     current = {"id": "EX:2"}
 
     assert problems(schema, retired, current) == [
-        Problem("EX:2", "label", "(missing)", "required unless the term is deprecated")
+        Problem("EX:2", "label", None, "required unless the term is deprecated")
     ]
     (term, _) = finalize(extract(retired, {**current, "label": "two"}), CONVERTER, schema, PIPELINE).terms
     assert (term.label, term.synonyms, term.replaced_by) == (None, None, "EX:2")

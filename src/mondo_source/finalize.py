@@ -56,7 +56,7 @@ def rejected(of: str, error: pydantic.ValidationError) -> list[Problem]:
         Problem(
             term=of,
             slot=".".join(part for part in e["loc"] if isinstance(part, str)),
-            value="(missing)" if e["type"] == "missing" else str(e["input"]),
+            value=None if e["type"] == "missing" else str(e["input"]),
             problem=e["msg"],
         )
         for e in error.errors()
@@ -77,7 +77,7 @@ def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
         return [*problems, *rejected(stated_id, e)]
     # The schema can't say this of label: see the slot's description there.
     if term.label is None and not term.deprecated:
-        problems.append(Problem(stated_id, "label", "(missing)", "required unless the term is deprecated"))
+        problems.append(Problem(stated_id, "label", None, "required unless the term is deprecated"))
     return problems or term
 
 

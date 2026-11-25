@@ -144,8 +144,15 @@ classes:
         annotations:
           owl.template: |-
             {% for s in synonyms %}
-            AnnotationAssertion({% if s.synonym_type %}Annotation(oboInOwl:hasSynonymType {{ iri(s.synonym_type) }}) {% endif %}{{ iri(s.scope.meaning) }} {{ iri(id) }} "{{ s.text | replace('\\', '\\\\') | replace('"', '\\"') }}")
-            {% if s.synonym_type %}SubAnnotationPropertyOf({{ iri(s.synonym_type) }} oboInOwl:SynonymTypeProperty){% endif %}
+            AnnotationAssertion(
+              {% if s.synonym_type %}
+              Annotation(oboInOwl:hasSynonymType {{ iri(s.synonym_type) }})
+              {% endif %}
+              {{ iri(s.scope.meaning) }} {{ iri(id) }} {{ literal(s.text) }}
+            )
+            {% if s.synonym_type %}
+            SubAnnotationPropertyOf({{ iri(s.synonym_type) }} oboInOwl:SynonymTypeProperty)
+            {% endif %}
             {% endfor %}
       parents:
         description: >-
@@ -206,7 +213,13 @@ classes:
         annotations:
           owl.template: |-
             {% for m in mappings %}
-            AnnotationAssertion(Annotation(sssom:mapping_justification {{ iri(m.mapping_justification) }}){% if m.comment %} Annotation(rdfs:comment "{{ m.comment | replace('\\', '\\\\') | replace('"', '\\"') }}"){% endif %} {{ iri(m.predicate_id) }} {{ iri(id) }} {{ iri(m.object_id) }})
+            AnnotationAssertion(
+              Annotation(sssom:mapping_justification {{ iri(m.mapping_justification) }})
+              {% if m.comment %}
+              Annotation(rdfs:comment {{ literal(m.comment) }})
+              {% endif %}
+              {{ iri(m.predicate_id) }} {{ iri(id) }} {{ iri(m.object_id) }}
+            )
             {% endfor %}
   Synonym:
     attributes:

@@ -62,6 +62,14 @@ def test_identifiers_become_canonical_curies(schema):
     assert stated.terms[1]["id"] == "Example:2"
 
 
+def test_a_slot_stated_as_an_empty_list_is_left_out(schema):
+    stated = extract({"id": "EX:1", "label": "one", "deprecated": True, "parents": [], "synonyms": [], "mappings": []})
+
+    (term,) = finalize(stated, CONVERTER, schema, PIPELINE).terms
+
+    assert term.model_dump(exclude_none=True) == {"id": "EX:1", "label": "one", "deprecated": True}
+
+
 def test_text_that_looks_like_an_identifier_is_left_alone(schema):
     (term,) = finalize(extract({"id": "EX:1", "label": "Example:2"}), CONVERTER, schema, PIPELINE).terms
 

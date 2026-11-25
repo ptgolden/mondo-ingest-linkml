@@ -63,6 +63,12 @@ def rejected(of: str, error: pydantic.ValidationError) -> list[Problem]:
     ]
 
 
+def without_empty_lists(stated: Stated) -> Stated:
+    """A stated term without the slots it gives an empty list for, which say the same
+    as leaving the slot out."""
+    return {slot: value for slot, value in stated.items() if value != []}
+
+
 def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
     """The Term a stated term makes once its identifiers are canonical, or what is
     wrong with it."""
@@ -72,7 +78,7 @@ def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
         for slot, identifier in identifiers.unknown_in(stated)
     ]
     try:
-        term = Term.model_validate(identifiers.to_curies(stated))
+        term = Term.model_validate(identifiers.to_curies(without_empty_lists(stated)))
     except pydantic.ValidationError as e:
         return [*problems, *rejected(stated_id, e)]
     # The schema can't say this of label: see the slot's description there.

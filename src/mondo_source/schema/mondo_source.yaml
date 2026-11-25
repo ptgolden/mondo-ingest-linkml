@@ -110,8 +110,14 @@ classes:
   Term:
     description: A class/concept in the source, identified by its CURIE in Mondo's prefix space.
     # OWL rendering (linkml-owl): each Term is an owl:Class. Each slot says how it is
-    # rendered: an `owl` axiom type (using the slot_uri), or an `owl.template` in OWL
-    # functional syntax for the structured ones.
+    # rendered. An `owl` axiom type, using the slot_uri, does for text, a boolean or a
+    # reference to another term. Four slots need an `owl.template`, in OWL functional
+    # syntax, with render_owl.py's iri() and literal():
+    # - synonyms, relationships and mappings hold objects, and each object is one axiom
+    #   made from several of its slots;
+    # - subsets holds identifiers that aren't terms. linkml-owl would write a
+    #   uriorcurie as text: it tests for the class Uriorcurie, and a loaded value is a
+    #   URIorCURIE, its parent.
     annotations:
       owl: Class
     attributes:
@@ -144,8 +150,15 @@ classes:
         annotations:
           owl.template: |-
             {% for s in synonyms %}
-            AnnotationAssertion({% if s.synonym_type %}Annotation(oboInOwl:hasSynonymType {{ iri(s.synonym_type) }}) {% endif %}{{ iri(s.scope.meaning) }} {{ iri(id) }} "{{ s.text | replace('\\', '\\\\') | replace('"', '\\"') }}")
-            {% if s.synonym_type %}SubAnnotationPropertyOf({{ iri(s.synonym_type) }} oboInOwl:SynonymTypeProperty){% endif %}
+            AnnotationAssertion(
+              {% if s.synonym_type %}
+              Annotation(oboInOwl:hasSynonymType {{ iri(s.synonym_type) }})
+              {% endif %}
+              {{ iri(s.scope.meaning) }} {{ iri(id) }} {{ literal(s.text) }}
+            )
+            {% if s.synonym_type %}
+            SubAnnotationPropertyOf({{ iri(s.synonym_type) }} oboInOwl:SynonymTypeProperty)
+            {% endif %}
             {% endfor %}
       parents:
         description: >-
@@ -203,10 +216,20 @@ classes:
         range: TermMapping
         multivalued: true
         inlined_as_list: true
+        # In OWL a mapping's object is an IRI, except an xref's (oboInOwl:hasDbXref),
+        # which OBO has as text: the CURIE.
         annotations:
           owl.template: |-
             {% for m in mappings %}
-            AnnotationAssertion(Annotation(sssom:mapping_justification {{ iri(m.mapping_justification) }}){% if m.comment %} Annotation(rdfs:comment "{{ m.comment | replace('\\', '\\\\') | replace('"', '\\"') }}"){% endif %} {{ iri(m.predicate_id) }} {{ iri(id) }} {{ iri(m.object_id) }})
+            {% set is_xref = m.predicate_id == 'oboInOwl:hasDbXref' %}
+            AnnotationAssertion(
+              Annotation(sssom:mapping_justification {{ iri(m.mapping_justification) }})
+              {% if m.comment %}
+              Annotation(rdfs:comment {{ literal(m.comment) }})
+              {% endif %}
+              {{ iri(m.predicate_id) }} {{ iri(id) }}
+              {{ literal(m.object_id) if is_xref else iri(m.object_id) }}
+            )
             {% endfor %}
   Synonym:
     attributes:

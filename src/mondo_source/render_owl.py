@@ -1,11 +1,12 @@
 """Render a SourceRelease as OWL with linkml-owl, from the `owl` annotations in the schema.
 
-Three additions to linkml-owl's own CLI:
+Four additions to linkml-owl's own CLI:
 - the release's prefix map is added to the schema's prefixes, so the CURIEs in the
   data (Orphanet:, MONDO:, ...) expand;
-- `owl.template`s get an `iri()` function that expands a CURIE to a full IRI. Templates
-  can't emit every CURIE as is: OWL functional syntax rejects some local parts, such as
-  ICD-10's dagger and asterisk codes (ICD10:A98.5+, ICD10:N08.0*);
+- `owl.template`s get two functions. `iri()` expands a CURIE to a full IRI: templates
+  can't emit every CURIE as is, because OWL functional syntax rejects some local parts,
+  such as ICD-10's dagger and asterisk codes (ICD10:A98.5+, ICD10:N08.0*). `literal()`
+  writes text as a quoted string, with the quotes and backslashes in it escaped;
 - an ontology header (linkml-owl writes none): the component's ontology and version
   IRIs, and annotations from the release metadata (HEADER), on linkml-owl's
   py-horned-owl document;
@@ -88,9 +89,22 @@ class Dumper(OWLDumper):
         return doc
 
     def _element_to_template_dict(self, element, val=None):
+        """What a template can use: linkml-owl's own names, and iri() and literal()."""
         d = super()._element_to_template_dict(element, val)
-        d["iri"] = lambda x: f"<{self.converter.expand_or_standardize(str(x), strict=True)}>"
+        d["iri"] = self.iri
+        d["literal"] = literal
         return d
+
+    def iri(self, curie) -> str:
+        """A CURIE as its full IRI, in angle brackets."""
+        return f"<{self.converter.expand_or_standardize(str(curie), strict=True)}>"
+
+
+def literal(text) -> str:
+    """Text as a string literal of OWL functional syntax: in quotes, with a backslash
+    before each backslash and quote in it."""
+    escaped = str(text).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
 
 def annotation_properties(doc: PyIndexedOntology):

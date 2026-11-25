@@ -210,15 +210,19 @@ classes:
         range: TermMapping
         multivalued: true
         inlined_as_list: true
+        # In OWL a mapping's object is an IRI, except an xref's (oboInOwl:hasDbXref),
+        # which OBO has as text: the CURIE.
         annotations:
           owl.template: |-
             {% for m in mappings %}
+            {% set is_xref = m.predicate_id == 'oboInOwl:hasDbXref' %}
             AnnotationAssertion(
               Annotation(sssom:mapping_justification {{ iri(m.mapping_justification) }})
               {% if m.comment %}
               Annotation(rdfs:comment {{ literal(m.comment) }})
               {% endif %}
-              {{ iri(m.predicate_id) }} {{ iri(id) }} {{ iri(m.object_id) }}
+              {{ iri(m.predicate_id) }} {{ iri(id) }}
+              {{ literal(m.object_id) if is_xref else iri(m.object_id) }}
             )
             {% endfor %}
   Synonym:

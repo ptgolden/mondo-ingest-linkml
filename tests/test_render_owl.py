@@ -41,6 +41,7 @@ TERMS = [
                 "mapping_justification": JUSTIFICATION,
                 "comment": 'a "specific" code',
             },
+            {"predicate_id": "oboInOwl:hasDbXref", "object_id": "EX:8", "mapping_justification": JUSTIFICATION},
         ],
     },
     {"id": "EX:2", "deprecated": True, "replaced_by": "EX:1"},
@@ -90,6 +91,16 @@ def test_quotes_and_backslashes_in_text_come_through(rendered):
 
 def test_a_mappings_object_is_an_iri(rendered):
     assert objects(rendered, EX + "1", SKOS + "exactMatch") == [ox.NamedNode(EX + "9")]
+
+
+def test_an_xrefs_object_is_the_curie_as_text(rendered):
+    justified = rendered.query(
+        f'SELECT ?target WHERE {{ ?axiom <{OWL}annotatedProperty> <{OIO}hasDbXref> ; <{OWL}annotatedTarget> ?target ;'
+        f" <https://w3id.org/sssom/mapping_justification> ?justification }}"
+    )
+
+    assert objects(rendered, EX + "1", OIO + "hasDbXref") == [ox.Literal("EX:8")]
+    assert [row["target"] for row in justified] == [ox.Literal("EX:8")]
 
 
 def test_the_header_and_the_annotation_properties_are_written(rendered):

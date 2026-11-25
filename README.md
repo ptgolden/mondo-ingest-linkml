@@ -134,7 +134,8 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
     synonyms, relationships, mappings and subsets. It adds the release's prefixes to
     linkml-owl's, and gives the templates two functions: `iri()` (for ICD-10 codes like
     `A98.5+`, which OWL functional syntax can't abbreviate) and `literal()` (text as a
-    quoted string, with its quotes and backslashes escaped).
+    quoted string, with its quotes and backslashes escaped). A mapping's object is an
+    IRI, except an xref's (`oboInOwl:hasDbXref`), which OBO has as text: the CURIE.
   - `yamlio.py` writes YAML that reads back the same under YAML 1.1 and 1.2.
 
   The CLIs use Typer, and `uv run pyright` is clean.

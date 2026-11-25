@@ -62,6 +62,14 @@ def test_identifiers_become_canonical_curies(schema):
     assert stated.terms[1]["id"] == "Example:2"
 
 
+def test_a_slot_stated_as_an_empty_list_is_left_out(schema):
+    stated = extract({"id": "EX:1", "label": "one", "deprecated": True, "parents": [], "synonyms": [], "mappings": []})
+
+    (term,) = finalize(stated, CONVERTER, schema, PIPELINE).terms
+
+    assert term.model_dump(exclude_none=True) == {"id": "EX:1", "label": "one", "deprecated": True}
+
+
 def test_text_that_looks_like_an_identifier_is_left_alone(schema):
     (term,) = finalize(extract({"id": "EX:1", "label": "Example:2"}), CONVERTER, schema, PIPELINE).terms
 
@@ -105,7 +113,7 @@ def test_a_term_without_a_label_is_a_problem_unless_it_is_deprecated(schema):
     current = {"id": "EX:2"}
 
     assert problems(schema, retired, current) == [
-        Problem("EX:2", "label", "(missing)", "required unless the term is deprecated")
+        Problem("EX:2", "label", None, "required unless the term is deprecated")
     ]
     (term, _) = finalize(extract(retired, {**current, "label": "two"}), CONVERTER, schema, PIPELINE).terms
     assert (term.label, term.synonyms, term.replaced_by) == (None, None, "EX:2")

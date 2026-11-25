@@ -26,10 +26,19 @@ from mondo_source.rdfstore import with_store
 type Rows = list[dict[str, str]]
 
 
+def sparql_files(directories: list[Path]) -> dict[str, Path]:
+    """The directories' updates and queries, by file name. A later directory's file
+    replaces an earlier one of the same name."""
+    files = {}
+    for directory in directories:
+        files |= {file.name: file for file in directory.iterdir() if file.suffix in (".ru", ".rq")}
+    return files
+
+
 def run_queries(store: ox.Store, sparql: list[Path]) -> dict[str, Rows]:
     """Run the directories' updates, then their queries, each kind in name order.
     Returns each query's rows under its file's name without ".rq"."""
-    files = {f.name: f for d in sparql for f in sorted(d.iterdir()) if f.suffix in (".ru", ".rq")}
+    files = sparql_files(sparql)
     for name in sorted(files):
         if name.endswith(".ru"):
             store.update(files[name].read_text())

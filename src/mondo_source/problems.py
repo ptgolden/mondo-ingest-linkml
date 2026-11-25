@@ -5,10 +5,10 @@ source read with SPARQL the two say which query it came from: <slot>.rq, or term
 for a single-valued slot.
 """
 
-from dataclasses import astuple, dataclass
+from dataclasses import dataclass
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True)
 class Problem:
     """One thing wrong with an extract."""
 
@@ -16,8 +16,20 @@ class Problem:
     """Its id as stated, or "(metadata)"."""
 
     slot: str
-    value: str
+    value: str | None
+    """As the source wrote it, or None if the slot has no value."""
+
     problem: str
+
+    def row(self) -> tuple[str, str, str, str]:
+        """As it is printed. The value is in quotes, so that a space at its end shows."""
+        return (self.term, self.slot, "(missing)" if self.value is None else repr(self.value), self.problem)
+
+
+def line(row: tuple[str, str, str, str], widths: list[int]) -> str:
+    """A row as a line of the report: all but its last cell padded to their columns."""
+    padded = [cell.ljust(width) for cell, width in zip(row[:3], widths)]
+    return "  ".join([*padded, row[3]])
 
 
 class Problems(Exception):
@@ -25,10 +37,10 @@ class Problems(Exception):
     and their number."""
 
     def __init__(self, problems: list[Problem]):
-        self.problems = sorted(set(problems))
+        self.problems = sorted(set(problems), key=Problem.row)
 
     def __str__(self) -> str:
-        rows = [astuple(problem) for problem in self.problems]
-        widths = [max(len(row[column]) for row in rows) for column in range(3)]
-        lines = ["  ".join([*(cell.ljust(width) for cell, width in zip(row, widths)), row[3]]) for row in rows]
+        rows = [problem.row() for problem in self.problems]
+        widths = [len(max(column, key=len)) for column in zip(*rows)]
+        lines = [line(row, widths) for row in rows]
         return "\n".join([*lines, f"{len(rows)} problems"])

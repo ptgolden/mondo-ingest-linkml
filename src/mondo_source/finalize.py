@@ -56,11 +56,17 @@ def rejected(of: str, error: pydantic.ValidationError) -> list[Problem]:
         Problem(
             term=of,
             slot=".".join(part for part in e["loc"] if isinstance(part, str)),
-            value="(missing)" if e["type"] == "missing" else str(e["input"]),
+            value=None if e["type"] == "missing" else str(e["input"]),
             problem=e["msg"],
         )
         for e in error.errors()
     ]
+
+
+def without_empty_lists(stated: Stated) -> Stated:
+    """A stated term without the slots it gives an empty list for, which say the same
+    as leaving the slot out."""
+    return {slot: value for slot, value in stated.items() if value != []}
 
 
 def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
@@ -72,12 +78,12 @@ def term_from(stated: Stated, identifiers: Identifiers) -> Term | list[Problem]:
         for slot, identifier in identifiers.unknown_in(stated)
     ]
     try:
-        term = Term.model_validate(identifiers.to_curies(stated))
+        term = Term.model_validate(identifiers.to_curies(without_empty_lists(stated)))
     except pydantic.ValidationError as e:
         return [*problems, *rejected(stated_id, e)]
     # The schema can't say this of label: see the slot's description there.
     if term.label is None and not term.deprecated:
-        problems.append(Problem(stated_id, "label", "(missing)", "required unless the term is deprecated"))
+        problems.append(Problem(stated_id, "label", None, "required unless the term is deprecated"))
     return problems or term
 
 
@@ -98,12 +104,11 @@ def repeated_ids(terms: list[Term]) -> list[Problem]:
 def parents_outside(terms: list[Term]) -> list[Problem]:
     """A problem for each parent that isn't a term of the release."""
     ids = {term.id for term in terms}
-    return [
-        Problem(term.id, "parents", parent, "not a term of the release")
-        for term in terms
-        for parent in term.parents or []
-        if parent not in ids
-    ]
+    problems = []
+    for term in terms:
+        outside = [parent for parent in term.parents or [] if parent not in ids]
+        problems += [Problem(term.id, "parents", parent, "not a term of the release") for parent in outside]
+    return problems
 
 
 def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ...]:

@@ -91,7 +91,7 @@ def test_finalize_prints_the_problems_and_writes_nothing(tmp_path, release_optio
     result = run("finalize", str(extract), *release_options)
 
     assert result.exit_code == 1
-    assert "No:1  id     No:1       no prefix in the prefix map" in result.output
+    assert "No:1  id     'No:1'     no prefix in the prefix map" in result.output
     assert "EX:2  label  (missing)  required unless the term is deprecated" in result.output
     assert not (tmp_path / "example.yaml").exists()
 

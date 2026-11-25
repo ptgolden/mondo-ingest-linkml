@@ -108,7 +108,7 @@ $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $
 	uv run mondo-source assemble \
 		--ontology $(SOURCE_FILE) \
 		$(addprefix --sparql ,$(SPARQL)) \
-		--source-download-url $$(cat $(TMP)/source-url.txt) \
+		--source-download-url "$$(cat $(TMP)/source-url.txt)" \
 		--extract-output $(EXTRACT) \
 		$(RELEASE_ARGS)
 else
@@ -116,7 +116,7 @@ else
 $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(EXTRACT) $(RELEASE_DEPS)
 	mkdir -p $(RELEASE)
 	uv run mondo-source finalize $(EXTRACT) \
-		$(addprefix --source-download-url ,$(SOURCE_URLS)) \
+		$(foreach url,$(SOURCE_URLS),--source-download-url '$(url)') \
 		$(RELEASE_ARGS)
 endif
 

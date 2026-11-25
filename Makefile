@@ -4,7 +4,10 @@
 SCHEMA := src/mondo_source/schema/mondo_source.yaml
 MODELS := src/mondo_source/datamodel.py
 
-.PHONY: models
+.PHONY: test models
+
+test:
+	uv run pytest
 
 # The Pydantic models are generated from the schema and committed. Run this after
 # changing the schema or upgrading linkml; a test fails while the two disagree.

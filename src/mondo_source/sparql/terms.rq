@@ -18,4 +18,3 @@ WHERE {
   OPTIONAL { ?id obo:IAO_0000115 ?def BIND(STR(?def) AS ?definition) }
   OPTIONAL { ?id obo:IAO_0100001 ?replaced_by FILTER(isIRI(?replaced_by)) }
 }
-ORDER BY ?id

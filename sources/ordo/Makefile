@@ -8,6 +8,8 @@ SOURCE_URL := https://www.orphadata.com/data/ontologies/ordo/last_version/ordo_o
 SOURCE_FILE := tmp/ordo.owl
 # mondo-ingest's own src/ontology/metadata/ordo.metadata.sssom.yml.
 SSSOM_METADATA := ordo.metadata.sssom.yml
+# mondo-ingest runs fix-labels-with-brackets.ru on ORDO.
+STRIP_BRACKETS := true
 
 MONDO_SOURCE := $(shell uv run mondo-source data-dir)
 include $(MONDO_SOURCE)/source.mk

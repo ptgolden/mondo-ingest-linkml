@@ -26,7 +26,7 @@ One Python package, `mondo-source`, and one directory per source:
 | `sources/ordo` | ORDO's own: its Makefile settings, SPARQL and SSSOM metadata. [README](sources/ordo/README.md) | ORDO's source repo |
 | `sources/icd10who` | ICD10WHO's own, likewise. [README](sources/icd10who/README.md) | Part of mondo-ingest-icd10who |
 
-A source directory holds no Python, so it isn't a package: its Makefile runs the
+Neither source directory holds Python, so neither is a package: its Makefile runs the
 `mondo-source` CLI from the project it sits in. ORDO's is 7 SPARQL files; ICD10WHO's is 2.
 
 ## Running it
@@ -42,6 +42,9 @@ make bundle     # also the mirror, its signature, and the semsql db and metrics 
 make validate   # linkml-validate <source>.yaml; sssom validate <source>.sssom.tsv
 make refresh    # re-download the source, then build
 ```
+
+`uv run pytest`, at the top of the repo, runs the tests. They need the Pydantic models
+generated from the schema, and generate them if the schema is the newer.
 
 Outputs, in the source's `release/`:
 
@@ -61,6 +64,7 @@ The file names are the ones mondo-ingest's targets expect (cf. `ICD10WHO_DOWNLOA
 
 ```
 source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs--> <source>.yaml
+   or: an extract --mondo-source finalize--> <source>.yaml
 <source>.yaml --mondo-source sssom--> <source>.sssom.tsv
 <source>.yaml --mondo-source render-owl (linkml-owl, plus header and declarations)--> <source>.owl
 ```
@@ -95,23 +99,35 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
     `metadata` ([sparql/README.md](src/mondo_source/sparql/README.md)).
     Sources add their own for what has no OBO convention (ORDO's mappings,
     relationships, subsets), or replace a shared one (ICD10WHO's metadata).
-  - Mondo's own additions are shared: `synonyms.rq` generates the label synonyms
-    (`mondo:GENERATED_FROM_LABEL`) and the bracket-stripped ones (`mondo:GENERATED`) for
-    every source, so the YAML shows what Mondo added rather than the source said.
-  - Each query ends in an `ORDER BY`, which is what makes the output deterministic.
+  - Mondo's own additions are not in the queries. `finalize.py` adds the label synonyms
+    (`mondo:GENERATED_FROM_LABEL`) for every source, and the bracket-stripped ones
+    (`mondo:GENERATED`) for a source whose Makefile sets `STRIP_BRACKETS`, so the YAML
+    shows what Mondo added rather than the source said. The second is a choice per
+    source, as in mondo-ingest, which doesn't make them for NCIT or ICD11 Foundation:
+    NCIT's final brackets are mostly cytogenetics (`… with t(5;12)(q31;p12)`), and
+    ICD11's `(TM2)` marks a traditional-medicine concept.
+  - Queries don't order their results. `finalize.py` sorts the terms and the values of
+    each multivalued slot, which is what makes the output deterministic.
   - Queries do no prefix handling. They return IRIs as IRIs, and identifiers a source only
-    has as strings (ORDO's xrefs) as literals typed `xsd:anyURI`.
+    has as strings (ORDO's xrefs) as those strings.
 - **The Python leans on libraries**, and none of it is source-specific.
-  - `assemble.py` (about 80 lines) groups query rows by term and hands them over:
-    - identifiers to `curies`, with `prefixes.yaml` as an extended prefix map. IRIs are
-      compressed, and `anyURI` literals are standardised, so ORDO's spellings (`ICD-10`,
-      `MeSH`, `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`;
-    - everything else to the Pydantic models generated from the schema (`gen-pydantic`,
-      into the package at build time, not committed). Building them coerces types and
-      checks required slots, CURIE patterns and unknown fields.
-
-    Its one check of its own: a term with two values for a single-valued slot fails,
-    because keeping either would silently drop the other.
+  - `extract.py` runs the queries and groups their rows by term into an *extract*: the
+    source's terms, and what the source says about itself. `mondo-source assemble`
+    leaves it in `tmp/<source>.extract.json`, to look at. Its one check of its own: a
+    term with two values for a single-valued slot fails, because keeping either would
+    silently drop the other.
+  - `finalize.py` turns an extract into the release:
+    - identifiers go to `curies`, with `prefixes.yaml` as an extended prefix map. An
+      IRI is compressed and a CURIE standardised, so ORDO's spellings (`ICD-10`, `MeSH`,
+      `ICD-11`) become mondo-ingest's prefixes via `prefix_synonyms`. Which slots hold
+      identifiers is read from the schema;
+    - Mondo's generated synonyms are added;
+    - the build's metadata is added to the source's own;
+    - terms are sorted by id, and each multivalued slot's values among themselves
+      (mappings by object, then predicate).
+  - Both use the Pydantic models generated from the schema (`gen-pydantic`, into the
+    package at build time, not committed). Building them coerces types and checks
+    required slots, CURIE patterns and unknown fields.
   - `sssom.py` flattens the mappings.
   - `render_owl.py` renders the YAML as OWL with linkml-owl, which reads `owl` annotations
     in the schema: an axiom type per slot, and OWL functional-syntax templates for
@@ -121,20 +137,32 @@ source RDF --mondo-source assemble: load into Oxigraph, SPARQL updates, SELECTs-
   - `yamlio.py` writes YAML that reads back the same under YAML 1.1 and 1.2.
 
   The CLIs use Typer, and `uv run pyright` is clean.
-- **Fail hard.** Assembly stops on:
-  - a term with conflicting single-valued slots;
-  - an identifier with no prefix in the map;
-  - anything the models reject.
+- **Fail hard, and say everything at once.** Nothing is written if:
+  - a term has conflicting single-valued slots (this one stops the extraction);
+  - an identifier has no prefix in the map;
+  - the models reject anything;
+  - two terms have the same id, or a term's parent isn't a term of the release.
+
+  All but the first are collected over the whole extract and printed together, a line
+  each: the term, the slot, the value as the source wrote it, and the problem. For a
+  source read with SPARQL, the slot is also the name of the query the value came from.
 
 ## Adding a source
 
 A directory under `sources/` with:
 - a `Makefile` setting `SOURCE`, `SOURCE_URL`, `SOURCE_FILE` (RDF/XML as `.owl`, or
-  Turtle) and `SSSOM_METADATA`, then including `source.mk`;
+  Turtle) and `SSSOM_METADATA`, and `STRIP_BRACKETS` if Mondo takes its bracket-stripped
+  names, then including `source.mk`;
 - `sparql/` with at least a scope update, plus whatever rewrites the source into OBO
   conventions and whatever queries it needs beyond the shared ones;
 - its SSSOM metadata;
 - its prefixes, added to the shared `prefixes.yaml`.
+
+A source that isn't RDF has no `SOURCE_URL`, `SOURCE_FILE` or `sparql/`. Its Makefile
+gives the rule for `$(EXTRACT)` instead: a JSON file its own code writes, with
+`metadata` (what the source says about itself) and `terms`, each in the shape of the
+schema's `Term`. Identifiers may be IRIs or CURIEs in any spelling `prefixes.yaml`
+knows. `mondo-source finalize` does to it what it does to an RDF source's extract.
 
 ## Findings about the approach
 
@@ -156,7 +184,7 @@ A directory under `sources/` with:
   - The faithful 25 MB YAML of the original approach took 10.8 s to parse with PyYAML's C
     loader, 58.8 s with ruamel (YAML 1.2), and 0.23 s as JSON.
   - The gene alias `2E4` is a string under YAML 1.1 (PyYAML) but the float `20000.0` under
-    YAML 1.2. The assembler quotes such strings.
+    YAML 1.2. `yamlio.py` quotes such strings.
 - **CURIE syntax needs an explicit pattern.** `uriorcurie` alone is unconstrained in JSON
   Schema and Pydantic, so the schema puts a pattern on each CURIE slot (one YAML anchor).
   It has to be on the slots: gen-pydantic ignores patterns declared on a type.
@@ -178,8 +206,9 @@ A directory under `sources/` with:
   source repo.
 - **An audit report.** A report of what each Mondo-interpretation step did (e.g. counts of
   generated synonyms, promoted `part_of` edges) could replace a second, faithful YAML.
-- **The non-RDF path.** It isn't exercised here, and may not need to be: every source
-  mondo-ingest has (DOID, ICD10CM, ICD10WHO, ICD11, NCIT, OMIM, ORDO) reaches it as RDF,
-  the non-RDF ones converted in their own repos. A non-RDF adapter would only have to
-  produce what the queries do: rows keyed by term ID, per slot.
+- **The non-RDF path.** A source that isn't RDF has a way in (`mondo-source finalize`)
+  and no source here uses it yet. Of mondo-ingest's sources, OMIM, ICD10WHO and ICD11
+  Foundation don't start as RDF; ICD10WHO reaches this repo as the Turtle its own repo
+  makes. Not decided: what such a source publishes as its mirror, which `make bundle`
+  and mondo-ingest's checks expect.
 - **`mapping_set_id` and PURLs** are placeholders until the PURL scheme is decided.

@@ -8,6 +8,9 @@ SOURCE := icd10who
 SOURCE_URL := https://github.com/monarch-initiative/mondo-ingest-icd10who/releases/download/v2026-10-12/icd10who.raw.ttl
 SOURCE_FILE := tmp/icd10who.ttl
 SSSOM_METADATA := icd10who.metadata.sssom.yml
+# mondo-ingest ran fix-labels-with-brackets.ru on ICD10WHO: 293 labels end in a
+# bracketed part ("Leprosy [Hansen disease]").
+STRIP_BRACKETS := true
 
 MONDO_SOURCE := $(shell uv run mondo-source data-dir)
 include $(MONDO_SOURCE)/source.mk

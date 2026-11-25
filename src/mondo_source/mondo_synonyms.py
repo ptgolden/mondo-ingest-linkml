@@ -30,7 +30,7 @@ def bracket_stripped(term: Term) -> set[str]:
     "pericytoma with t(7;12)" is lowercased and nothing more.
     """
     exact = [synonym.text for synonym in term.synonyms or [] if synonym.scope == SynonymScope.EXACT]
-    bracketed = [text for text in (term.label, *exact) if ENDS_IN_BRACKET.search(text)]
+    bracketed = [text for text in (term.label, *exact) if text and ENDS_IN_BRACKET.search(text)]
     return {FINAL_BRACKETED_PART.sub("", text.lower()) for text in bracketed}
 
 
@@ -41,7 +41,7 @@ def mondo_synonyms(term: Term, identifiers: Identifiers, strip_brackets: bool) -
       (mondo-ingest's exact_syn_from_label.ru), for every source;
     - bracket_stripped(), typed mondo:GENERATED, for the sources that ask for it.
     """
-    from_label = [] if term.deprecated else [term.label]
+    from_label = [term.label] if term.label and not term.deprecated else []
     stripped = bracket_stripped(term) if strip_brackets else set()
     return [
         *(generated(text, GENERATED_FROM_LABEL, identifiers) for text in from_label),

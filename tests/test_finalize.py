@@ -6,7 +6,7 @@ from mondo_source.problems import Problem, Problems
 
 PIPELINE = {
     "source_id": "example",
-    "source_download_url": "https://example.org/example.owl",
+    "source_download_urls": ["https://example.org/example.owl"],
     "generated_at": "2026-01-01T00:00:00Z",
     "generated_by": "tests",
 }
@@ -82,10 +82,10 @@ def test_an_unknown_prefix_is_a_problem_naming_the_term_and_the_slot(schema):
 
 
 def test_every_unknown_prefix_in_a_term_is_a_problem_and_so_is_what_the_model_rejects(schema):
-    stated = {"id": "EX:1", "parents": ["No:2", "Nor:3"]}
+    stated = {"id": "EX:1", "label": "one", "parents": ["No:2", "Nor:3"], "colour": "red"}
 
     assert [(p.slot, p.value) for p in problems(schema, stated)] == [
-        ("label", "(missing)"),
+        ("colour", "red"),
         ("parents", "No:2"),
         ("parents", "Nor:3"),
     ]
@@ -96,9 +96,19 @@ def test_what_the_model_rejects_is_a_problem_for_each_slot(schema):
 
     assert [(p.term, p.slot, p.value) for p in problems(schema, stated)] == [
         ("EX:1", "colour", "red"),
-        ("EX:1", "label", "(missing)"),
         ("EX:1", "synonyms.scope", "SIMILAR"),
     ]
+
+
+def test_a_term_without_a_label_is_a_problem_unless_it_is_deprecated(schema):
+    retired = {"id": "EX:1", "deprecated": True, "replaced_by": "EX:2"}
+    current = {"id": "EX:2"}
+
+    assert problems(schema, retired, current) == [
+        Problem("EX:2", "label", "(missing)", "required unless the term is deprecated")
+    ]
+    (term, _) = finalize(extract(retired, {**current, "label": "two"}), CONVERTER, schema, PIPELINE).terms
+    assert (term.label, term.synonyms, term.replaced_by) == (None, None, "EX:2")
 
 
 def test_problems_in_every_term_and_in_the_metadata_are_reported_together(schema):

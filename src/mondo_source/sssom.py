@@ -28,7 +28,7 @@ ID_SLOTS = ("creator_id", "author_id", "reviewer_id")
 def project(release: dict, converter: curies.Converter, metadata: dict) -> tuple[dict, list[dict]]:
     rows = [
         # Inline mappings omit their subject: it is the term they sit under.
-        {"subject_id": term["id"], "subject_label": term["label"], **mapping}
+        {"subject_id": term["id"], "subject_label": term.get("label", ""), **mapping}
         for term in release["terms"]
         for mapping in term.get("mappings", [])
     ]

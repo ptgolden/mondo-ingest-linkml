@@ -41,7 +41,8 @@ def release_options(tmp_path, schema_file, importmap_file) -> list[str]:
         *("--output", str(tmp_path / "example.yaml")),
         *("--metadata-output", str(tmp_path / "example.metadata.yaml")),
         *("--set", "source_id=example"),
-        *("--set", "source_download_url=https://example.org/onto.ttl"),
+        *("--source-download-url", "https://example.org/onto.ttl"),
+        *("--source-download-url", "https://example.org/versions.json"),
         *("--set", "generated_at=2026-01-01T00:00:00Z"),
         *("--set", "generated_by=tests"),
     ]
@@ -66,6 +67,21 @@ def test_finalize_writes_the_release_and_its_metadata(tmp_path, release_options)
     ]
     assert yaml.safe_load((tmp_path / "example.metadata.yaml").read_text()) == release["metadata"]
     assert release["metadata"]["source_id"] == "example"
+    assert release["metadata"]["source_download_urls"] == [
+        "https://example.org/onto.ttl",
+        "https://example.org/versions.json",
+    ]
+
+
+def test_a_release_built_without_download_urls_has_none_in_its_metadata(tmp_path, release_options):
+    extract = tmp_path / "example.extract.json"
+    extract.write_text(json.dumps({"metadata": {"source_version": "1.0"}, "terms": []}))
+    without_urls = [option for option in release_options if "download" not in option and "example.org/" not in option]
+
+    result = run("finalize", str(extract), *without_urls)
+
+    assert result.exit_code == 0, result.output
+    assert "source_download_urls" not in yaml.safe_load((tmp_path / "example.metadata.yaml").read_text())
 
 
 def test_finalize_prints_the_problems_and_writes_nothing(tmp_path, release_options):
@@ -76,7 +92,7 @@ def test_finalize_prints_the_problems_and_writes_nothing(tmp_path, release_optio
 
     assert result.exit_code == 1
     assert "No:1  id     No:1       no prefix in the prefix map" in result.output
-    assert "EX:2  label  (missing)  Field required" in result.output
+    assert "EX:2  label  (missing)  required unless the term is deprecated" in result.output
     assert not (tmp_path / "example.yaml").exists()
 
 

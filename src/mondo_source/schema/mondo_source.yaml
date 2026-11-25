@@ -18,7 +18,7 @@ description: >-
   (3) Mappings are inlined on the term they are about, using the sssom-schema
   package's own slots, so the SSSOM file is a projection of this data, not a
   second source of truth.
-version: 0.6.0
+version: 0.7.0
 license: https://creativecommons.org/publicdomain/zero/1.0/
 
 prefixes:
@@ -90,10 +90,13 @@ classes:
       source_license:
         range: uri
         slot_uri: dcterms:license
-      source_download_url:
-        description: The URL this release was actually built from.
+      source_download_urls:
+        description: >-
+          The URLs this release was actually built from: one for a source that is
+          a single file, several for one put together from several. Left out for
+          a source whose URLs can't be published: OMIM's contain its download key.
         range: uri
-        required: true
+        multivalued: true
       schema_version:
         description: Version of this schema the release was validated against.
         required: true
@@ -119,8 +122,14 @@ classes:
         # on each slot because gen-pydantic ignores patterns on types.
         pattern: &curie "^[A-Za-z_][A-Za-z0-9_.-]*:\\S+$"
       label:
+        description: >-
+          The term's name in the source. Every term has one unless it is deprecated.
+          A source can keep an identifier it has retired without saying what it was
+          called (OMIM's moved entries, OncoTree's precursor codes), and then there
+          is nothing to take the name from. Mondo keeps its own merged terms the
+          same way (monarch-initiative/mondo#889). The condition is checked when a
+          release is built, not by this schema.
         slot_uri: rdfs:label
-        required: true
         annotations:
           owl: AnnotationAssertion
       definition:

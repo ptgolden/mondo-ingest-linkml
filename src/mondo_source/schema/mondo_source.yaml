@@ -110,8 +110,14 @@ classes:
   Term:
     description: A class/concept in the source, identified by its CURIE in Mondo's prefix space.
     # OWL rendering (linkml-owl): each Term is an owl:Class. Each slot says how it is
-    # rendered: an `owl` axiom type (using the slot_uri), or an `owl.template` in OWL
-    # functional syntax for the structured ones.
+    # rendered. An `owl` axiom type, using the slot_uri, does for text, a boolean or a
+    # reference to another term. Four slots need an `owl.template`, in OWL functional
+    # syntax, with render_owl.py's iri() and literal():
+    # - synonyms, relationships and mappings hold objects, and each object is one axiom
+    #   made from several of its slots;
+    # - subsets holds identifiers that aren't terms. linkml-owl would write a
+    #   uriorcurie as text: it tests for the class Uriorcurie, and a loaded value is a
+    #   URIorCURIE, its parent.
     annotations:
       owl: Class
     attributes:

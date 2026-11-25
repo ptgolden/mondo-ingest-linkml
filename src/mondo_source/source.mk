@@ -29,12 +29,14 @@
 #
 # A source that isn't RDF sets neither of those two, and sets:
 #
+#   DOWNLOADS       the files it downloads, which `make refresh` fetches again
 #   SOURCE_URLS     optional. Every URL it is downloaded from, for the release's
 #                   metadata, which is published: never a URL with a key in it
 #
-# After including this file, its Makefile gives the rule for $(EXTRACT): what Mondo takes in from the source, written
-# by the source's own code as JSON in the shape of the schema's SourceRelease (see
-# finalize.py). `make bundle` also needs its rule for the mirror.
+# After including this file, its Makefile gives the rules for its downloads and for
+# $(EXTRACT): what Mondo takes in from the source, written by the source's own code as
+# JSON in the shape of the schema's SourceRelease (see finalize.py). `make bundle` also
+# needs its rule for the mirror.
 #
 # Either way linkml-owl renders <source>.owl from <source>.yaml. ROBOT is used only
 # inside the ODK image, for the metrics.
@@ -93,15 +95,13 @@ RELEASE_DEPS := $(MODELS) $(TMP)/importmap.json $(PREFIXES) $(PYTHON_SRC)
 ifdef SOURCE_FILE
 # An RDF source: downloaded, then extracted with SPARQL and finalized in one process.
 # The extract is left in $(EXTRACT), to look at.
+DOWNLOADS := $(SOURCE_FILE) $(TMP)/source-url.txt
+
 $(SOURCE_FILE):
 	mkdir -p $(dir $@) $(TMP)
 	curl -sSfL -o $@.part $(SOURCE_URL)
 	mv $@.part $@
 	echo $(SOURCE_URL) > $(TMP)/source-url.txt
-
-refresh:
-	rm -f $(SOURCE_FILE) $(TMP)/source-url.txt
-	$(MAKE) all
 
 $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(SOURCE_FILE) $(SPARQL_FILES) $(RELEASE_DEPS)
 	mkdir -p $(RELEASE)
@@ -119,6 +119,12 @@ $(RELEASE)/$(SOURCE).yaml $(RELEASE)/$(SOURCE).metadata.yaml &: $(EXTRACT) $(REL
 		$(foreach url,$(SOURCE_URLS),--source-download-url '$(url)') \
 		$(RELEASE_ARGS)
 endif
+
+# make can't tell when a file on someone else's server has changed. This fetches the
+# source again, by removing what was downloaded and building.
+refresh:
+	rm -f $(DOWNLOADS)
+	$(MAKE) all
 
 # ── Renderings of <source>.yaml ───────────────────────────────────────────────
 $(RELEASE)/$(SOURCE).sssom.tsv: $(RELEASE)/$(SOURCE).yaml $(PREFIXES) $(SSSOM_METADATA) $(PYTHON_SRC)

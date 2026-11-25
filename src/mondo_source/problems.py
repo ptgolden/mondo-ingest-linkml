@@ -26,6 +26,12 @@ class Problem:
         return (self.term, self.slot, "(missing)" if self.value is None else repr(self.value), self.problem)
 
 
+def line(row: tuple[str, str, str, str], widths: list[int]) -> str:
+    """A row as a line of the report: all but its last cell padded to their columns."""
+    padded = [cell.ljust(width) for cell, width in zip(row[:3], widths)]
+    return "  ".join([*padded, row[3]])
+
+
 class Problems(Exception):
     """Everything wrong with an extract. As text, a line for each problem, in columns,
     and their number."""
@@ -35,6 +41,6 @@ class Problems(Exception):
 
     def __str__(self) -> str:
         rows = [problem.row() for problem in self.problems]
-        widths = [max(len(row[column]) for row in rows) for column in range(3)]
-        lines = ["  ".join([*(cell.ljust(width) for cell, width in zip(row, widths)), row[3]]) for row in rows]
+        widths = [len(max(column, key=len)) for column in zip(*rows)]
+        lines = [line(row, widths) for row in rows]
         return "\n".join([*lines, f"{len(rows)} problems"])

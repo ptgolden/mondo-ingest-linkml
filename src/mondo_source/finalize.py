@@ -104,12 +104,11 @@ def repeated_ids(terms: list[Term]) -> list[Problem]:
 def parents_outside(terms: list[Term]) -> list[Problem]:
     """A problem for each parent that isn't a term of the release."""
     ids = {term.id for term in terms}
-    return [
-        Problem(term.id, "parents", parent, "not a term of the release")
-        for term in terms
-        for parent in term.parents or []
-        if parent not in ids
-    ]
+    problems = []
+    for term in terms:
+        outside = [parent for parent in term.parents or [] if parent not in ids]
+        problems += [Problem(term.id, "parents", parent, "not a term of the release") for parent in outside]
+    return problems
 
 
 def sort_key(value: str | Synonym | Relationship | TermMapping) -> tuple[str, ...]:
